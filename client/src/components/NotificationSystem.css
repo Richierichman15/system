@@ -1,0 +1,194 @@
+.notification-system {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: 350px;
+}
+
+.notification {
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid #00ffff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  color: white;
+  font-family: 'Courier New', monospace;
+  animation: slideIn 0.3s ease-out, glow 2s ease-in-out infinite alternate;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3);
+}
+
+.notification-xp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.notification-xp i {
+  color: #ffff00;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.notification-level-up {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-color: #ffd700;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 140, 0, 0.1));
+}
+
+.notification-level-up i {
+  color: #ffd700;
+  font-size: 1.5em;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.level-up-text {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 10px #ffd700;
+  animation: textGlow 1.5s ease-in-out infinite alternate;
+}
+
+.level-info {
+  font-size: 0.9em;
+  color: #ffff00;
+  opacity: 0.9;
+}
+
+.notification-achievement {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-color: #ff6b35;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(255, 20, 147, 0.1));
+  min-height: 60px;
+}
+
+.notification-achievement i {
+  color: #ff6b35;
+  font-size: 1.5em;
+  margin-top: 4px;
+  animation: rotate 2s linear infinite;
+}
+
+.achievement-title {
+  font-size: 1em;
+  font-weight: bold;
+  color: #ff6b35;
+  margin-bottom: 4px;
+}
+
+.achievement-name {
+  font-size: 1.1em;
+  color: #ffffff;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.achievement-desc {
+  font-size: 0.85em;
+  color: #cccccc;
+  opacity: 0.9;
+}
+
+.notification-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #32cd32;
+  font-weight: bold;
+  border-color: #32cd32;
+  background: rgba(50, 205, 50, 0.1);
+}
+
+.notification-skill i {
+  color: #32cd32;
+  animation: slideUp 0.5s ease-out;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3);
+  }
+  to {
+    box-shadow: 0 4px 30px rgba(0, 255, 255, 0.6);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes textGlow {
+  from {
+    text-shadow: 0 0 10px #ffd700;
+  }
+  to {
+    text-shadow: 0 0 20px #ffd700, 0 0 30px #ffd700;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .notification-system {
+    right: 10px;
+    top: 10px;
+    max-width: 300px;
+  }
+  
+  .notification {
+    padding: 12px;
+    font-size: 0.9em;
+  }
+}

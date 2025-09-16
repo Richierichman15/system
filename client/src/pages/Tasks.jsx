@@ -22,8 +22,63 @@ export default function Tasks() {
 
   async function completeTask(id) {
     try {
-      await api.completeTask(id)
+      const result = await api.completeTask(id)
       loadTasks()
+      
+      // Show visual feedback
+      if (result.xp_gained) {
+        window.dispatchEvent(new CustomEvent('game-notification', {
+          detail: {
+            type: 'xp',
+            amount: result.xp_gained,
+            duration: 2000
+          }
+        }))
+      }
+      
+      // Show level up notification
+      if (result.level_up) {
+        window.dispatchEvent(new CustomEvent('game-notification', {
+          detail: {
+            type: 'level-up',
+            newLevel: result.new_level,
+            oldLevel: result.old_level,
+            duration: 4000
+          }
+        }))
+      }
+      
+      // Show skill bonuses
+      if (result.skill_bonuses && Object.keys(result.skill_bonuses).length > 0) {
+        Object.entries(result.skill_bonuses).forEach(([skill, amount]) => {
+          window.dispatchEvent(new CustomEvent('game-notification', {
+            detail: {
+              type: 'skill',
+              skill: skill.charAt(0).toUpperCase() + skill.slice(1),
+              amount,
+              duration: 2500
+            }
+          }))
+        })
+      }
+      
+      // Show achievement notifications
+      if (result.achievements && result.achievements.length > 0) {
+        result.achievements.forEach(achievement => {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('game-notification', {
+              detail: {
+                type: 'achievement',
+                name: achievement.name,
+                description: achievement.description,
+                icon: achievement.icon,
+                duration: 5000
+              }
+            }))
+          }, 1000) // Delay achievements so they don't overlap with other notifications
+        })
+      }
+      
     } catch (e) {
       setError(e.message)
     }
@@ -83,36 +138,88 @@ export default function Tasks() {
       </div>
 
       <div className="grid">
-        {filteredTasks.map(task => (
-          <div key={task.id} className="quest-card">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xl font-bold">{task.title}</h3>
-              <span className="px-3 py-1 rounded-full text-sm border border-white/30">
-                {task.frequency}
-              </span>
-            </div>
-            
-            <p className="text-white/80 mb-6">{task.description}</p>
-            
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white/60">Reward:</span>
-                <span className="text-glow">{task.xp} XP</span>
+        {filteredTasks.map(task => {
+          const difficultyColors = {
+            easy: '#10B981',
+            medium: '#F59E0B', 
+            hard: '#EF4444',
+            expert: '#8B5CF6'
+          }
+          
+          const categoryIcons = {
+            work: 'fa-briefcase',
+            fitness: 'fa-dumbbell',
+            learning: 'fa-book',
+            social: 'fa-users',
+            personal: 'fa-heart',
+            general: 'fa-star'
+          }
+          
+          return (
+            <div key={task.id} className="quest-card">
+              <div className="quest-header">
+                <div className="quest-title-section">
+                  <h3 className="quest-title">{task.title}</h3>
+                  <div className="quest-tags">
+                    <span className="frequency-tag">{task.frequency}</span>
+                    {task.difficulty && (
+                      <span 
+                        className="difficulty-tag"
+                        style={{ 
+                          borderColor: difficultyColors[task.difficulty],
+                          color: difficultyColors[task.difficulty]
+                        }}
+                      >
+                        {task.difficulty.charAt(0).toUpperCase() + task.difficulty.slice(1)}
+                      </span>
+                    )}
+                    {task.category && (
+                      <span className="category-tag">
+                        <i className={`fas ${categoryIcons[task.category] || 'fa-star'}`}></i>
+                        {task.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
               
-              {!task.completed ? (
-                <button 
-                  onClick={() => completeTask(task.id)}
-                  className="quest-btn"
-                >
-                  Complete
-                </button>
-              ) : (
-                <span className="text-green-400 text-glow">✓ Completed</span>
-              )}
+              <p className="quest-description">{task.description}</p>
+              
+              <div className="quest-footer">
+                <div className="quest-reward">
+                  <span className="reward-label">Reward:</span>
+                  <span className="reward-value text-glow">{task.xp} XP</span>
+                  {task.is_recurring && (
+                    <span className="recurring-indicator">
+                      <i className="fas fa-sync-alt"></i>
+                      Recurring
+                    </span>
+                  )}
+                </div>
+                
+                {!task.completed ? (
+                  <button 
+                    onClick={() => completeTask(task.id)}
+                    className="quest-btn"
+                  >
+                    <i className="fas fa-check"></i>
+                    Complete
+                  </button>
+                ) : (
+                  <div className="completed-indicator">
+                    <i className="fas fa-check-circle"></i>
+                    Completed
+                    {task.completed_at && (
+                      <span className="completion-time">
+                        {new Date(task.completed_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="flex flex-col items-center mt-8">

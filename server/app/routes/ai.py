@@ -95,25 +95,28 @@ def generate_tasks(
         # Generate tasks using AI
         if ollama is None:
             print("Ollama not available, using fallback tasks")
-            # Lightweight fallback tasks
+            # Enhanced fallback tasks with difficulty and categories
             items = [
                 {
                     "title": "Quick Study Session",
                     "description": "15 minutes focused learning",
-                    "frequency": frequency,
-                    "xp": 15
+                    "difficulty": "medium",
+                    "category": "learning",
+                    "xp": 20
                 },
                 {
                     "title": "Health Check",
                     "description": "5 minute stretching break",
-                    "frequency": frequency,
-                    "xp": 10
+                    "difficulty": "easy",
+                    "category": "fitness",
+                    "xp": 12
                 },
                 {
-                    "title": "Daily Progress",
-                    "description": "Make progress on your goals",
-                    "frequency": frequency,
-                    "xp": 15
+                    "title": "Daily Progress Review",
+                    "description": "Reflect on progress toward goals",
+                    "difficulty": "medium",
+                    "category": "personal",
+                    "xp": 18
                 }
             ]
         else:
@@ -122,13 +125,12 @@ def generate_tasks(
                 # Use direct HTTP request to Ollama with optimized settings
                 ollama_url = "http://localhost:11434/api/generate"
                 
-                # Ultra-concise prompt for faster generation
+                # Enhanced prompt for better task generation
                 prompt = (
-                    "Create 3 tasks as JSON array:\n"
-                    f"Goals: {goals}\n"
-                    f"Frequency: {frequency}\n"
-                    '[{"title":"Task","description":"Action","xp":20}]\n'
-                    "Short titles, brief descriptions, xp:10-30."
+                    f"Create 3 {frequency} tasks as JSON array for goals: {goals}\n"
+                    "Format: [{\"title\":\"Task Name\",\"description\":\"What to do\",\"difficulty\":\"easy|medium|hard\",\"category\":\"work|fitness|learning|social|personal|general\",\"xp\":15}]\n"
+                    "Easy tasks: 10-15 XP, Medium: 15-25 XP, Hard: 25-40 XP\n"
+                    "Match category to goal type. Vary difficulty levels."
                 )
                 
                 response = httpx.post(
@@ -180,37 +182,54 @@ def generate_tasks(
                 except json.JSONDecodeError as e:
                     print(f"JSON decode error: {e}")
                     print(f"Content was: {content}")
-                    # Fall back to default tasks
+                    # Enhanced fallback tasks
                     items = [
                         {
                             "title": "Focus Session",
                             "description": "Complete a 25-minute focused work session",
-                            "frequency": frequency,
-                            "xp": 15
+                            "difficulty": "medium",
+                            "category": "work",
+                            "xp": 20
                         },
                         {
                             "title": "Skill Development",
                             "description": "Practice a new skill for 20 minutes",
-                            "frequency": frequency,
-                            "xp": 20
+                            "difficulty": "hard",
+                            "category": "learning",
+                            "xp": 30
                         },
                         {
                             "title": "Reflection Time",
                             "description": "Take 10 minutes to reflect on your progress",
-                            "frequency": frequency,
-                            "xp": 10
+                            "difficulty": "easy",
+                            "category": "personal",
+                            "xp": 12
                         }
                     ]
                 
-                # Simple validation without excessive processing
+                # Enhanced validation with new fields
                 cleaned_items = []
+                valid_difficulties = ["easy", "medium", "hard", "expert"]
+                valid_categories = ["work", "fitness", "learning", "social", "personal", "general"]
+                
                 for item in items:
                     if isinstance(item, dict) and "title" in item:
+                        # Validate difficulty
+                        difficulty = item.get("difficulty", "medium")
+                        if difficulty not in valid_difficulties:
+                            difficulty = "medium"
+                            
+                        # Validate category
+                        category = item.get("category", "general")
+                        if category not in valid_categories:
+                            category = "general"
+                        
                         cleaned_item = {
                             "title": str(item.get("title", ""))[:50],
                             "description": str(item.get("description", ""))[:100],
-                            "frequency": frequency,
-                            "xp": min(max(int(item.get("xp", 15)), 10), 30)
+                            "difficulty": difficulty,
+                            "category": category,
+                            "xp": min(max(int(item.get("xp", 15)), 10), 50)
                         }
                         cleaned_items.append(cleaned_item)
                 items = cleaned_items[:3]
@@ -221,39 +240,47 @@ def generate_tasks(
                 
             except Exception as e:
                 print(f"Task generation error: {e}")
-                # Fall back to default tasks
+                # Enhanced final fallback tasks
                 items = [
                     {
                         "title": "Focus Session",
                         "description": "Complete a 25-minute focused work session",
-                        "frequency": frequency,
-                        "xp": 15
+                        "difficulty": "medium",
+                        "category": "work",
+                        "xp": 20
                     },
                     {
                         "title": "Skill Development",
                         "description": "Practice a new skill for 20 minutes",
-                        "frequency": frequency,
-                        "xp": 20
+                        "difficulty": "hard",
+                        "category": "learning",
+                        "xp": 30
                     },
                     {
                         "title": "Reflection Time",
                         "description": "Take 10 minutes to reflect on your progress",
-                        "frequency": frequency,
-                        "xp": 10
+                        "difficulty": "easy",
+                        "category": "personal",
+                        "xp": 12
                     }
                 ]
 
-    # Limit number of tasks created
+    # Create tasks with enhanced fields
     tasks: List[Task] = []
     for item in items[:3]:  # Extra safety limit
         try:
+            # Create task with new fields
             task = Task(
                 title=item["title"],
                 description=item["description"],
                 frequency=frequency,
+                difficulty=item.get("difficulty", "medium"),
+                category=item.get("category", "general"),
                 xp=item["xp"],
                 created_at=datetime.utcnow()
             )
+            # Recalculate XP based on difficulty
+            task.xp = task.calculate_xp_reward()
             session.add(task)
             tasks.append(task)
         except Exception as e:
