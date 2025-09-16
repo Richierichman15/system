@@ -24,7 +24,7 @@ def create_task(task: Task, session: Session = Depends(get_session)):
     return task
 
 
-@router.patch("/{task_id}/complete", response_model=Task)
+@router.post("/{task_id}/complete", response_model=Task)
 def complete_task(task_id: int, session: Session = Depends(get_session)):
     task = session.get(Task, task_id)
     if not task:

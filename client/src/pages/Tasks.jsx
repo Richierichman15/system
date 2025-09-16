@@ -29,8 +29,11 @@ export default function Tasks() {
     }
   }
 
+  const [isGenerating, setIsGenerating] = useState(false)
+
   async function generateTasks() {
     try {
+      setIsGenerating(true)
       await api.generateTasks({
         goals: 'Improve productivity and skills',
         frequency: 'daily'
@@ -38,6 +41,8 @@ export default function Tasks() {
       loadTasks()
     } catch (e) {
       setError(e.message)
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -110,11 +115,17 @@ export default function Tasks() {
         ))}
       </div>
 
-      <div className="flex justify-center mt-8">
-        <button onClick={generateTasks} className="menu-button">
-          <span>Generate New Quests</span>
-          <i className="fas fa-magic"></i>
-        </button>
+      <div className="flex flex-col items-center mt-8">
+        <div className="flex gap-4 mb-4">
+          <button 
+            onClick={generateTasks} 
+            className="menu-button"
+            disabled={isGenerating}
+          >
+            <span>{isGenerating ? 'Generating...' : 'Generate New Quests'}</span>
+            <i className={`fas ${isGenerating ? 'fa-spinner fa-spin' : 'fa-magic'}`}></i>
+          </button>
+        </div>
       </div>
 
       <div className="page-footer">

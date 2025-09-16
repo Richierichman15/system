@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Task
-from typing import List
+from typing import List, Dict, Any
 import os
 import json
 from datetime import datetime, timedelta
 import httpx
+import time
 
 try:
     import ollama
@@ -16,12 +17,58 @@ except Exception:  # pragma: no cover
 
 router = APIRouter()
 
+# Cache for generated tasks
+task_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def get_cached_tasks(cache_key: str):
+    """Get tasks from cache if they exist and are not expired"""
+    if cache_key in task_cache:
+        cache_entry = task_cache[cache_key]
+        # Check if cache is still valid (10 minutes)
+        if datetime.utcnow() - cache_entry["timestamp"] < timedelta(minutes=10):
+            return cache_entry["tasks"]
+    return None
+
+
+def store_in_cache(cache_key: str, tasks: List[Dict]):
+    """Store tasks in cache"""
+    task_cache[cache_key] = {
+        "timestamp": datetime.utcnow(),
+        "tasks": tasks
+    }
+
+
+def background_ollama_request(prompt: str):
+    """Make Ollama request in background to warm up the model"""
+    try:
+        ollama_url = "http://localhost:11434/api/generate"
+        httpx.post(
+            ollama_url,
+            json={
+                "model": "tinyllama:latest",  # Use the same model for consistency
+                "prompt": prompt,
+                "options": {
+                    "temperature": 0.5,
+                    "top_k": 10,
+                    "top_p": 0.7,
+                    "num_predict": 5  # Just generate a few tokens to warm up
+                }
+            },
+            timeout=5.0
+        )
+    except Exception as e:
+        print(f"Background Ollama request error: {e}")
+
 
 @router.post("/generate", response_model=List[Task])
-def generate_tasks(payload: dict, session: Session = Depends(get_session)):
+def generate_tasks(
+    payload: dict, 
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
     """
-    Generate tasks using Ollama based on user's goals and preferences.
-    Expected payload keys: goals (str), frequency (str: daily|weekly|monthly)
+    Generate tasks based on user's goals and preferences using AI.
     """
     # Add rate limiting - check if tasks were generated recently
     one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
@@ -38,114 +85,163 @@ def generate_tasks(payload: dict, session: Session = Depends(get_session)):
     goals: str = payload.get("goals", "").strip()[:200]  # Limit input size
     frequency: str = payload.get("frequency", "daily")
     
-    # Use shorter prompt for quicker generation
-    prompt = (
-        "Generate 3 tasks as JSON array for these goals:\n"
-        f"Goals: {goals}\n"
-        f"Frequency: {frequency}\n"
-        'Format: [{"title": "Task Name", "description": "Action", "frequency": "daily", "xp": 20}]\n'
-        "Keep titles under 50 chars, descriptions under 100 chars, xp between 10-30."
-    )
-
-    items: List[dict]
-    if ollama is None:
-        print("Ollama not available, using fallback tasks")
-        # Lightweight fallback tasks
-        items = [
-            {
-                "title": "Quick Study Session",
-                "description": "15 minutes focused learning",
-                "frequency": frequency,
-                "xp": 15
-            },
-            {
-                "title": "Health Check",
-                "description": "5 minute stretching break",
-                "frequency": frequency,
-                "xp": 10
-            }
-        ]
+    # Check cache first
+    cache_key = f"{goals}:{frequency}"
+    cached_items = get_cached_tasks(cache_key)
+    if cached_items:
+        print("Using cached tasks")
+        items = cached_items
     else:
-        try:
-            print("Sending request to Ollama...")
-            # Use direct HTTP request to Ollama
-            ollama_url = "http://localhost:11434/api/generate"
-            response = httpx.post(
-                ollama_url,
-                json={
-                    "model": "llama3:8b-instruct-q4_0",
-                    "prompt": f"Return only a JSON array of tasks: {prompt}",
-                    "options": {
-                        "temperature": 0.5,
-                        "top_k": 10,
-                        "top_p": 0.7,
-                    }
-                },
-                timeout=30.0  # 30 second timeout
-            )
-            
-            if not response.is_success:
-                print(f"Ollama error: {response.status_code} - {response.text}")
-                raise Exception("Ollama request failed")
-                
-            # Parse streaming response
-            content = ""
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    if "response" in data:
-                        content += data["response"]
-                except json.JSONDecodeError:
-                    continue
-                    
-            print(f"Ollama response: {content}")
-            
-            # Clean up the content
-            content = content.strip()
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:].strip()
-            
-            try:
-                items = json.loads(content)[:3]  # Limit to 3 tasks max
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error: {e}")
-                print(f"Content was: {content}")
-                items = []
-            
-            # Simple validation without excessive processing
-            cleaned_items = []
-            for item in items:
-                if isinstance(item, dict) and "title" in item:
-                    cleaned_item = {
-                        "title": str(item.get("title", ""))[:50],
-                        "description": str(item.get("description", ""))[:100],
-                        "frequency": frequency,
-                        "xp": min(max(int(item.get("xp", 15)), 10), 30)
-                    }
-                    cleaned_items.append(cleaned_item)
-            items = cleaned_items[:3]
-            
-        except Exception as e:
-            print(f"Task generation error: {e}")
-            # Return fallback tasks instead of failing
+        # Generate tasks using AI
+        if ollama is None:
+            print("Ollama not available, using fallback tasks")
+            # Lightweight fallback tasks
             items = [
+                {
+                    "title": "Quick Study Session",
+                    "description": "15 minutes focused learning",
+                    "frequency": frequency,
+                    "xp": 15
+                },
+                {
+                    "title": "Health Check",
+                    "description": "5 minute stretching break",
+                    "frequency": frequency,
+                    "xp": 10
+                },
                 {
                     "title": "Daily Progress",
                     "description": "Make progress on your goals",
                     "frequency": frequency,
                     "xp": 15
-                },
-                {
-                    "title": "Quick Win",
-                    "description": "Complete one small task toward your goal",
-                    "frequency": frequency,
-                    "xp": 10
                 }
             ]
+        else:
+            try:
+                print("Sending request to Ollama...")
+                # Use direct HTTP request to Ollama with optimized settings
+                ollama_url = "http://localhost:11434/api/generate"
+                
+                # Ultra-concise prompt for faster generation
+                prompt = (
+                    "Create 3 tasks as JSON array:\n"
+                    f"Goals: {goals}\n"
+                    f"Frequency: {frequency}\n"
+                    '[{"title":"Task","description":"Action","xp":20}]\n'
+                    "Short titles, brief descriptions, xp:10-30."
+                )
+                
+                response = httpx.post(
+                    ollama_url,
+                    json={
+                        "model": "tinyllama:latest",  # Tiny model for speed
+                        "prompt": f"Return only a JSON array of tasks: {prompt}",
+                        "options": {
+                            "temperature": 0.5,
+                            "top_k": 10,
+                            "top_p": 0.7,
+                            "num_ctx": 256,  # Even smaller context
+                            "num_predict": 150,  # Limit output size
+                            "mirostat": 1,  # Enable adaptive sampling
+                            "mirostat_eta": 0.1,  # Lower is faster
+                            "mirostat_tau": 5.0  # Lower is more deterministic
+                        }
+                    },
+                    timeout=10.0  # Even shorter timeout
+                )
+                
+                if not response.is_success:
+                    print(f"Ollama error: {response.status_code} - {response.text}")
+                    raise Exception("Ollama request failed")
+                    
+                # Parse streaming response
+                content = ""
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        if "response" in data:
+                            content += data["response"]
+                    except json.JSONDecodeError:
+                        continue
+                        
+                print(f"Ollama response: {content}")
+                
+                # Clean up the content
+                content = content.strip()
+                if content.startswith("```"):
+                    content = content.split("```")[1]
+                    if content.startswith("json"):
+                        content = content[4:].strip()
+                
+                try:
+                    items = json.loads(content)[:3]  # Limit to 3 tasks max
+                except json.JSONDecodeError as e:
+                    print(f"JSON decode error: {e}")
+                    print(f"Content was: {content}")
+                    # Fall back to default tasks
+                    items = [
+                        {
+                            "title": "Focus Session",
+                            "description": "Complete a 25-minute focused work session",
+                            "frequency": frequency,
+                            "xp": 15
+                        },
+                        {
+                            "title": "Skill Development",
+                            "description": "Practice a new skill for 20 minutes",
+                            "frequency": frequency,
+                            "xp": 20
+                        },
+                        {
+                            "title": "Reflection Time",
+                            "description": "Take 10 minutes to reflect on your progress",
+                            "frequency": frequency,
+                            "xp": 10
+                        }
+                    ]
+                
+                # Simple validation without excessive processing
+                cleaned_items = []
+                for item in items:
+                    if isinstance(item, dict) and "title" in item:
+                        cleaned_item = {
+                            "title": str(item.get("title", ""))[:50],
+                            "description": str(item.get("description", ""))[:100],
+                            "frequency": frequency,
+                            "xp": min(max(int(item.get("xp", 15)), 10), 30)
+                        }
+                        cleaned_items.append(cleaned_item)
+                items = cleaned_items[:3]
+                
+                # Store in cache
+                if items:
+                    store_in_cache(cache_key, items)
+                
+            except Exception as e:
+                print(f"Task generation error: {e}")
+                # Fall back to default tasks
+                items = [
+                    {
+                        "title": "Focus Session",
+                        "description": "Complete a 25-minute focused work session",
+                        "frequency": frequency,
+                        "xp": 15
+                    },
+                    {
+                        "title": "Skill Development",
+                        "description": "Practice a new skill for 20 minutes",
+                        "frequency": frequency,
+                        "xp": 20
+                    },
+                    {
+                        "title": "Reflection Time",
+                        "description": "Take 10 minutes to reflect on your progress",
+                        "frequency": frequency,
+                        "xp": 10
+                    }
+                ]
 
     # Limit number of tasks created
     tasks: List[Task] = []

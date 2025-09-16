@@ -1,26 +1,56 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import axios from 'axios'
 
-async function http(method, path, body) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`API ${method} ${path} failed: ${res.status} ${text}`)
-  }
-  const contentType = res.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) return res.json()
-  return res.text()
-}
+const API_URL = 'http://localhost:8000'
 
 export const api = {
-  health: () => http('GET', '/health'),
-  getProfile: () => http('GET', '/profile/'),
-  updateProfile: (data) => http('PATCH', '/profile/', data),
-  listTasks: () => http('GET', '/tasks/'),
-  createTask: (task) => http('POST', '/tasks/', task),
-  completeTask: (id) => http('PATCH', `/tasks/${id}/complete`),
-  generateTasks: (payload) => http('POST', '/ai/generate', payload),
+  // Profile endpoints
+  async getProfile() {
+    const response = await axios.get(`${API_URL}/profile`)
+    return response.data
+  },
+
+  async updateProfile(data) {
+    const response = await axios.post(`${API_URL}/profile`, data)
+    return response.data
+  },
+
+  // Task endpoints
+  async listTasks() {
+    const response = await axios.get(`${API_URL}/tasks`)
+    return response.data
+  },
+
+  async completeTask(id) {
+    const response = await axios.post(`${API_URL}/tasks/${id}/complete`)
+    return response.data
+  },
+
+  // AI task generation
+  async generateTasks(data) {
+    // Add loading state
+    const taskContainer = document.querySelector('.grid')
+    if (taskContainer) {
+      const loadingElement = document.createElement('div')
+      loadingElement.className = 'loading-indicator'
+      loadingElement.innerHTML = `
+        <div class="spinner"></div>
+        <p>Generating quests...</p>
+      `
+      taskContainer.appendChild(loadingElement)
+    }
+    
+    try {
+      const response = await axios.post(`${API_URL}/ai/generate`, data)
+      return response.data
+    } catch (error) {
+      console.error('Error generating tasks:', error)
+      throw error
+    } finally {
+      // Remove loading indicator
+      const loadingIndicator = document.querySelector('.loading-indicator')
+      if (loadingIndicator) {
+        loadingIndicator.remove()
+      }
+    }
+  }
 }
