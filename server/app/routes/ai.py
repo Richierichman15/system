@@ -217,9 +217,9 @@ def generate_tasks(
                 
                 # Enhanced prompt with detailed goal context
                 goals_context = ""
-                if user_context['active_goals']:
+                if user_context['goals']:
                     goals_list = []
-                    for goal in user_context['active_goals']:
+                    for goal in user_context['goals']:
                         progress_pct = int(goal.get('progress', 0) * 100)
                         goals_list.append(f"- {goal['title']} ({goal['category']}, {goal['priority']} priority, {progress_pct}% complete)")
                     goals_context = f"Active Goals:\n" + "\n".join(goals_list)

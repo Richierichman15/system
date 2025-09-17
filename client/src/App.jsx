@@ -1,18 +1,32 @@
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, Suspense, lazy } from 'react'
 import './App.css'
 import './styles.css'
 import './components/GameplayStyles.css'
-import Dashboard from './pages/Dashboard'
-import Tasks from './pages/Tasks'
-import Skills from './pages/Skills'
-import WorldMap from './pages/WorldMap'
-import Settings from './pages/Settings'
-import Achievements from './pages/Achievements'
-import Goals from './pages/Goals'
+import Dashboard from './pages/Dashboard' // Keep Dashboard eager-loaded for fast initial render
 import StatsHeader from './components/StatsHeader'
 import NotificationSystem from './components/NotificationSystem'
 import { api } from './api'
+
+// Lazy load secondary pages for better performance
+const Tasks = lazy(() => import('./pages/Tasks'))
+const Skills = lazy(() => import('./pages/Skills'))
+const WorldMap = lazy(() => import('./pages/WorldMap'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Achievements = lazy(() => import('./pages/Achievements'))
+const Goals = lazy(() => import('./pages/Goals'))
+
+// Loading component for lazy-loaded pages
+function LoadingSpinner() {
+  return (
+    <div className="loading-container">
+      <div className="loading-spinner">
+        <i className="fas fa-sync-alt fa-spin text-glow"></i>
+        <p className="loading-text">Loading...</p>
+      </div>
+    </div>
+  )
+}
 
 function Nav() {
   const location = useLocation()
@@ -65,15 +79,17 @@ export default function App() {
       <div className="bg-grid-pattern min-h-screen">
         <Nav />
         <main className="container">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/skills" element={<Skills />} />
-            <Route path="/world" element={<WorldMap />} />
-            <Route path="/achievements" element={<Achievements />} />
-            <Route path="/goals" element={<Goals />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/skills" element={<Skills />} />
+              <Route path="/world" element={<WorldMap />} />
+              <Route path="/achievements" element={<Achievements />} />
+              <Route path="/goals" element={<Goals />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </Suspense>
         </main>
         <NotificationSystem />
       </div>

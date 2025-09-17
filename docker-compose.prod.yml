@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/gitonga-nyaga/system-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/system.db
+      - CORS_ORIGINS=https://yourdomain.com
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - solo-leveling-network
+
+  frontend:
+    image: ghcr.io/gitonga-nyaga/system-frontend:latest
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - solo-leveling-network
+
+  # Production Ollama service (optional)
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - solo-leveling-network
+    # Uncomment if you have GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  backend_data:
+  ollama_data:
+
+networks:
+  solo-leveling-network:
+    driver: bridge

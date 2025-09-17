@@ -1,11 +1,48 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8000'
+// Environment-aware API URL
+const API_URL = import.meta.env.VITE_API_URL || 
+  (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '/api')
+
+// Simple in-memory cache for API responses
+const cache = new Map()
+const CACHE_DURATION = 30000 // 30 seconds
+
+function getCacheKey(url, params = {}) {
+  return `${url}?${JSON.stringify(params)}`
+}
+
+function getCached(key) {
+  const cached = cache.get(key)
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data
+  }
+  cache.delete(key)
+  return null
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() })
+}
+
+// Enhanced axios instance with caching
+const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
 
 export const api = {
-  // Profile endpoints
+  // Profile endpoints with caching
   async getProfile() {
-    const response = await axios.get(`${API_URL}/profile`)
+    const cacheKey = getCacheKey('/profile')
+    const cached = getCached(cacheKey)
+    if (cached) return cached
+
+    const response = await apiClient.get('/profile')
+    setCache(cacheKey, response.data)
     return response.data
   },
 
