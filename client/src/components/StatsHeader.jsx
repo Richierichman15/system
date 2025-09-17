@@ -28,23 +28,28 @@ export default function StatsHeader({ onProfileUpdate }) {
     }
   }
 
-  // Enhanced level calculation
-  const calculateLevel = (xp) => {
-    if (xp <= 0) return 1
-    return Math.floor(Math.sqrt(xp / 50)) + 1
-  }
-
-  const xpForLevel = (level) => {
-    if (level <= 1) return 0
-    return Math.pow(level - 1, 2) * 50
+  // Use backend's level calculation - matches the new leveling system
+  const getXpForLevel = (level) => {
+    const levelThresholds = [
+      0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500,
+      6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000
+    ]
+    
+    if (level <= levelThresholds.length) {
+      return levelThresholds[level - 1] || 0
+    } else {
+      // For levels beyond 20
+      return 19000 + ((level - 20) * 2500)
+    }
   }
 
   const getProgress = () => {
-    if (!profile) return { current: 0, needed: 50, progress: 0, level: 1 }
+    if (!profile) return { current: 0, needed: 100, progress: 0, level: 1 }
     
-    const currentLevel = profile.level || calculateLevel(profile.xp)
-    const currentLevelXP = xpForLevel(currentLevel)
-    const nextLevelXP = xpForLevel(currentLevel + 1)
+    // Always use the level from backend (it's calculated server-side with the correct formula)
+    const currentLevel = profile.level || 1
+    const currentLevelXP = getXpForLevel(currentLevel)
+    const nextLevelXP = getXpForLevel(currentLevel + 1)
     const progressXP = profile.xp - currentLevelXP
     const neededXP = nextLevelXP - currentLevelXP
     const progress = neededXP > 0 ? (progressXP / neededXP) * 100 : 0

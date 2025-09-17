@@ -59,7 +59,7 @@ export default function Dashboard() {
                 <div className="stat-block">
                   <span className="stat-label">Level</span>
                   <span className="stat-value text-glow">
-                    {Math.floor(profile.xp / 100) + 1}
+                    {profile.level}
                   </span>
                 </div>
                 <div className="stat-block">
