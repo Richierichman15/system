@@ -63,6 +63,7 @@ class Task(SQLModel, table=True):
     category: str = Field(default="general", description="work|fitness|learning|social|personal|general")
     xp: int = 10
     skill_bonuses: Optional[str] = Field(default=None, description="JSON string of skill bonuses")
+    goal_alignment: Optional[float] = Field(default=0.0, description="How well this task aligns with user goals (0.0 to 1.0)")
     is_recurring: bool = Field(default=False)
     recurring_interval: Optional[int] = Field(default=None, description="Days between recurrence")
     active: bool = Field(default=True, description="Whether the task is currently active")

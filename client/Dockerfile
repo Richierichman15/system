@@ -1,5 +1,5 @@
-# Use development mode for now to avoid build issues
-FROM node:20-alpine
+# Multi-stage build to handle rollup issues
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -9,12 +9,26 @@ RUN apk add --no-cache curl
 
 # Copy package files
 COPY package*.json ./
+COPY .npmrc ./
 
-# Install dependencies
-RUN npm install
+# Clean install to avoid rollup issues
+RUN rm -rf node_modules package-lock.json && \
+    npm install --no-optional --legacy-peer-deps
 
 # Copy source code
 COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine AS production
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Expose port
 EXPOSE 5173
@@ -23,5 +37,5 @@ EXPOSE 5173
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5173 || exit 1
 
-# Start development server (for now)
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

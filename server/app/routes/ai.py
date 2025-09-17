@@ -71,12 +71,12 @@ def generate_tasks(
     Generate tasks based on user's goals and preferences using AI.
     """
     # Add rate limiting - check if tasks were generated recently
-    one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+    ten_seconds_ago = datetime.utcnow() - timedelta(seconds=10)
     recent_tasks = session.exec(
-        select(Task).where(Task.created_at > one_minute_ago)
+        select(Task).where(Task.created_at > ten_seconds_ago)
     ).all()
     
-    if len(recent_tasks) > 0:
+    if len(recent_tasks) > 5:  # Allow up to 5 tasks in 10 seconds
         raise HTTPException(
             status_code=429,
             detail="Please wait a moment before generating more tasks"
@@ -277,6 +277,7 @@ def generate_tasks(
                 difficulty=item.get("difficulty", "medium"),
                 category=item.get("category", "general"),
                 xp=item["xp"],
+                goal_alignment=0.0,  # Default goal alignment
                 created_at=datetime.utcnow()
             )
             # Recalculate XP based on difficulty

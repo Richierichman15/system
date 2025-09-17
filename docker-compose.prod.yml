@@ -2,15 +2,16 @@ version: '3.8'
 
 services:
   backend:
-    image: ghcr.io/gitonga-nyaga/system-backend:latest
+    build:
+      context: ./server
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:///./data/system.db
-      - CORS_ORIGINS=https://yourdomain.com
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80
     volumes:
       - backend_data:/app/data
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -19,46 +20,32 @@ services:
       start_period: 10s
     networks:
       - solo-leveling-network
+    restart: unless-stopped
 
   frontend:
-    image: ghcr.io/gitonga-nyaga/system-frontend:latest
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: production
     ports:
-      - "80:80"
+      - "3000:5173"
     depends_on:
       backend:
         condition: service_healthy
-    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:8000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
     networks:
       - solo-leveling-network
-
-  # Production Ollama service (optional)
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
     restart: unless-stopped
-    networks:
-      - solo-leveling-network
-    # Uncomment if you have GPU support
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
 volumes:
   backend_data:
-  ollama_data:
 
 networks:
   solo-leveling-network:
