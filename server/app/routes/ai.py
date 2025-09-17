@@ -48,8 +48,8 @@ def get_user_context(session: Session) -> Dict[str, Any]:
         session.commit()
         session.refresh(profile)
     
-    # Get active goals
-    goals = session.exec(select(Goal).where(Goal.is_active == True)).all()
+    # Get active goals (not completed)
+    goals = session.exec(select(Goal).where(Goal.completed == False)).all()
     
     context = {
         "profile": {

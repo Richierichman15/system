@@ -1,5 +1,6 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
+from .models import UserProfile, Task, Achievement, Goal  # Import models to register them
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./system.db")

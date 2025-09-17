@@ -11,14 +11,22 @@ router = APIRouter()
 
 @router.get("/", response_model=List[Goal])
 def list_goals(session: Session = Depends(get_session)):
-    """Get all active goals"""
-    return session.exec(select(Goal).where(Goal.is_active == True).order_by(Goal.priority.desc(), Goal.created_at.desc())).all()
+    """Get all active goals for user 1"""
+    return session.exec(select(Goal).where(Goal.user_id == 1, Goal.completed == False).order_by(Goal.priority.desc(), Goal.created_at.desc())).all()
 
 
 @router.post("/", response_model=Goal)
 def create_goal(goal_data: dict, session: Session = Depends(get_session)):
     """Create a new goal"""
+    # Ensure user exists
+    user = session.get(UserProfile, 1)
+    if not user:
+        user = UserProfile(id=1)
+        session.add(user)
+        session.flush()
+    
     goal = Goal(**goal_data)
+    goal.user_id = 1
     goal.created_at = datetime.utcnow()
     goal.updated_at = datetime.utcnow()
     session.add(goal)

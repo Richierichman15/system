@@ -1,6 +1,6 @@
 from typing import Optional, List
-from sqlmodel import SQLModel, Field
-from datetime import datetime
+from sqlmodel import SQLModel, Field, Relationship
+from datetime import datetime, date
 import math
 import json
 
@@ -9,13 +9,17 @@ class Goal(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     description: Optional[str] = None
-    category: str = Field(description="career|health|personal|financial|learning|relationships")
+    category: str = Field(default="personal", description="career|health|personal|financial|learning|relationships")
     priority: str = Field(default="medium", description="low|medium|high|critical")
-    target_date: Optional[datetime] = None
-    progress: float = Field(default=0.0, description="Progress percentage (0.0 to 1.0)")
-    is_active: bool = Field(default=True)
+    target_date: Optional[date] = None
+    progress: float = Field(default=0.0, description="0.0 to 1.0")
+    completed: bool = Field(default=False)
+    completed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: Optional[int] = Field(default=1, foreign_key="userprofile.id")
+    user: Optional["UserProfile"] = Relationship(back_populates="user_goals")
 
 
 class UserProfile(SQLModel, table=True):
@@ -83,6 +87,11 @@ class UserProfile(SQLModel, table=True):
     def set_focus_areas(self, areas: List[str]):
         """Set focus areas as JSON"""
         self.focus_areas = json.dumps(areas)
+    
+    # Relationships
+    tasks: List["Task"] = Relationship(back_populates="user")
+    user_goals: List["Goal"] = Relationship(back_populates="user")
+    achievements: List["Achievement"] = Relationship(back_populates="user")
 
 
 class Task(SQLModel, table=True):
@@ -101,6 +110,9 @@ class Task(SQLModel, table=True):
     completed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: Optional[int] = Field(default=1, foreign_key="userprofile.id")
+    user: Optional["UserProfile"] = Relationship(back_populates="tasks")
     
     def calculate_xp_reward(self, base_xp: int = None) -> int:
         """Calculate XP reward based on difficulty and goal alignment"""
@@ -133,3 +145,6 @@ class Achievement(SQLModel, table=True):
     unlocked_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: Optional[int] = Field(default=1, foreign_key="userprofile.id")
+    user: Optional["UserProfile"] = Relationship(back_populates="achievements")
