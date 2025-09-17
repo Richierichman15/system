@@ -11,10 +11,8 @@ RUN apk add --no-cache curl
 COPY package*.json ./
 COPY .npmrc ./
 
-# Clean install to avoid rollup issues
-RUN rm -rf node_modules package-lock.json && \
-    npm install --legacy-peer-deps --no-optional && \
-    npm install rollup@^4.0.0 --save-dev --legacy-peer-deps || echo "Rollup install failed, continuing..."
+# Install dependencies
+RUN npm install --legacy-peer-deps --no-optional
 
 # Copy source code
 COPY . .

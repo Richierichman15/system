@@ -8,19 +8,14 @@ export default defineConfig({
     host: true,
   },
   build: {
-    // Ensure consistent builds across environments
-    rollupOptions: {
-      external: [],
-      output: {
-        manualChunks: undefined,
-      },
-    },
+    // Use esbuild for all builds to avoid rollup issues
+    minify: 'esbuild',
     // Increase chunk size warning limit
     chunkSizeWarningLimit: 1000,
-    // Use esbuild for faster builds
-    minify: 'esbuild',
+    // Disable rollup and use esbuild
+    rollupOptions: undefined,
   },
-  // Handle rollup issues in CI
+  // Handle dependencies
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'axios'],
   },

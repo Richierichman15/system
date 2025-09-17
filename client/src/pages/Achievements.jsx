@@ -6,7 +6,7 @@ export default function Achievements() {
   const [achievements, setAchievements] = useState([])
   const [stats, setStats] = useState(null)
   const [error, setError] = useState('')
-  const [filter, setFilter] = useState('all') // all, unlocked, locked
+  const [filter, setFilter] = useState('all') 
 
   useEffect(() => {
     loadData()

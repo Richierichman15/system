@@ -13,10 +13,6 @@ rm -rf node_modules package-lock.json
 echo "📦 Installing dependencies..."
 npm install --legacy-peer-deps --no-optional
 
-# Try to install rollup explicitly if needed
-echo "🔧 Ensuring rollup is available..."
-npm install rollup@^4.0.0 --save-dev --legacy-peer-deps || echo "Rollup installation failed, continuing..."
-
 # Build the project
 echo "🏗️ Building project..."
 npm run build
