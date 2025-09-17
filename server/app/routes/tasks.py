@@ -59,6 +59,22 @@ def update_task(task_id: int, payload: dict, session: Session = Depends(get_sess
     return task
 
 
+@router.post("/{task_id}/toggle-active")
+def toggle_task_active(task_id: int, session: Session = Depends(get_session)):
+    task = session.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.completed:
+        raise HTTPException(status_code=400, detail="Cannot activate completed tasks")
+    
+    task.active = not task.active
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return {"task": task, "message": f"Task {'activated' if task.active else 'deactivated'}"}
+
+
 @router.delete("/{task_id}")
 def delete_task(task_id: int, session: Session = Depends(get_session)):
     task = session.get(Task, task_id)

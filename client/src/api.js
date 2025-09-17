@@ -40,6 +40,11 @@ export const api = {
     return response.data
   },
 
+  async toggleTaskActive(id) {
+    const response = await axios.post(`${API_URL}/tasks/${id}/toggle-active`)
+    return response.data
+  },
+
   async getTaskCategories() {
     const response = await axios.get(`${API_URL}/tasks/categories`)
     return response.data

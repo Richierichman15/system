@@ -127,16 +127,17 @@ def generate_tasks(
     """
     Generate tasks based on user's goals and preferences using AI.
     """
-    # Add rate limiting - check if tasks were generated recently
-    one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
-    recent_tasks = session.exec(
-        select(Task).where(Task.created_at > one_minute_ago)
+    # Simple rate limiting - only prevent rapid successive calls (30 seconds)
+    thirty_seconds_ago = datetime.utcnow() - timedelta(seconds=30)
+    very_recent_tasks = session.exec(
+        select(Task).where(Task.created_at > thirty_seconds_ago)
     ).all()
     
-    if len(recent_tasks) > 0:
+    # Only block if 3+ tasks were created in the last 30 seconds (likely AI spam)
+    if len(very_recent_tasks) >= 3:
         raise HTTPException(
             status_code=429,
-            detail="Please wait a moment before generating more tasks"
+            detail="Please wait 30 seconds before generating more tasks."
         )
 
     # Get user context for better AI generation
@@ -176,26 +177,39 @@ def generate_tasks(
         # Generate tasks using AI
         if ollama is None:
             print("Ollama not available, using enhanced fallback tasks")
-            # Enhanced fallback tasks based on user context
-            categories = ["career", "health", "learning"] if not focus_areas else focus_areas[:3]
-            items = []
-            
-            for i, category in enumerate(categories):
-                base_xp = {"easy": 10, "medium": 15, "hard": 25, "expert": 40}.get(difficulty, 15)
-                alignment = calculate_goal_alignment(category, active_goals)
-                
-                items.append({
-                    "title": f"{category.title()} Focus Session",
-                    "description": f"Work on {category}-related tasks for 25 minutes",
-                    "frequency": frequency,
-                    "category": category,
+            # Specific fallback tasks aligned with user desires
+            specific_tasks = [
+                {
+                    "title": "Code Algorithm Challenge",
+                    "description": "Solve 2 medium-difficulty coding problems focusing on data structures and algorithms",
+                    "category": "learning",
                     "difficulty": difficulty,
-                    "goal_alignment": alignment,
-                    "xp": base_xp
+                    "xp": 25
+                },
+                {
+                    "title": "High-Intensity Workout",
+                    "description": "25-minute HIIT session: burpees, mountain climbers, push-ups, and squats",
+                    "category": "health", 
+                    "difficulty": difficulty,
+                    "xp": 20
+                },
+                {
+                    "title": "Personal Project Sprint",
+                    "description": "Dedicate 45 minutes to coding or advancing your current personal project",
+                    "category": "personal",
+                    "difficulty": difficulty,
+                    "xp": 30
+                }
+            ]
+            
+            items = []
+            for task in specific_tasks[:3]:
+                alignment = calculate_goal_alignment(task["category"], active_goals)
+                task.update({
+                    "frequency": frequency,
+                    "goal_alignment": alignment
                 })
-                
-                if len(items) >= 3:
-                    break
+                items.append(task)
         else:
             try:
                 print("Sending request to Ollama...")
@@ -212,23 +226,35 @@ def generate_tasks(
                 else:
                     goals_context = "No specific goals set yet."
 
-                prompt = f"""Create 3 personalized tasks that directly help achieve the user's goals:
+                prompt = f"""Create 3 SPECIFIC, actionable tasks based on these desires and goals:
 
+MAIN DESIRES: "My desires are to improve my health, strengthen my mind, and build consistent habits that make me disciplined and focused. I want to level up my coding and creative skills, grow my finances, and keep making progress on my personal projects. I want to learn new things and explore. I like challenges."
+
+ACTIVE GOALS:
 {goals_context}
 
-User Level: {user_context['profile']['level']}
-Frequency: {frequency}
-Preferred Difficulty: {difficulty}
+Create tasks that are:
+- SPECIFIC actions (not vague like "make progress")
+- CHALLENGING and engaging
+- Directly tied to health, mind strengthening, coding skills, finances, or personal projects
+- Actionable within a {frequency} timeframe
 
 Return ONLY a JSON array:
-[{{"title":"Specific Task","description":"Actionable step","category":"career|health|personal|financial|learning|relationships","difficulty":"{difficulty}","xp":20,"goal_relation":"Brief explanation of how this helps achieve goals"}}]
+[{{"title":"Specific Action (20-30 words max)","description":"Detailed actionable step (30-50 words)","category":"health|learning|career|financial|personal","difficulty":"{difficulty}","xp":25}}]
 
-Requirements:
-- Each task should directly contribute to at least one active goal
-- Be specific and actionable (not vague)
-- Match the user's skill level (Level {user_context['profile']['level']})
-- XP range: easy(10-15), medium(15-25), hard(25-40), expert(40-60)
-- Include goal_relation field explaining the connection"""
+Examples of GOOD tasks:
+- "Complete 30-minute HIIT workout with burpees and planks"
+- "Write 100 lines of clean Python code for personal project"
+- "Read 1 chapter of finance book and take detailed notes"
+- "Practice 1 hour of focused coding on data structures"
+- "Meditate for 15 minutes using breath counting technique"
+
+Examples of BAD tasks (too vague):
+- "Make progress on health"
+- "Work on coding skills"
+- "Improve finances"
+
+Focus on: Health improvement, mind strengthening, coding mastery, financial growth, personal projects, learning challenges."""
 
                 response = httpx.post(
                     ollama_url,
@@ -322,23 +348,39 @@ Requirements:
                 
             except Exception as e:
                 print(f"Task generation error: {e}")
-                # Enhanced fallback with user context
-                items = []
-                categories = focus_areas[:3] if focus_areas else ["personal", "health", "learning"]
-                
-                for category in categories:
-                    base_xp = {"easy": 10, "medium": 15, "hard": 25, "expert": 40}.get(difficulty, 15)
-                    alignment = calculate_goal_alignment(category, active_goals)
-                    
-                    items.append({
-                        "title": f"{category.title()} Progress",
-                        "description": f"Make meaningful progress on your {category} goals",
-                        "frequency": frequency,
-                        "category": category,
+                # Specific error fallback tasks
+                error_tasks = [
+                    {
+                        "title": "Mind-Strengthening Reading",
+                        "description": "Read 15 pages of a challenging non-fiction book and take detailed notes",
+                        "category": "learning",
                         "difficulty": difficulty,
-                        "goal_alignment": alignment,
-                        "xp": base_xp
+                        "xp": 20
+                    },
+                    {
+                        "title": "Financial Planning Session", 
+                        "description": "Review budget, track expenses, or research investment opportunities for 30 minutes",
+                        "category": "financial",
+                        "difficulty": difficulty,
+                        "xp": 25
+                    },
+                    {
+                        "title": "Discipline Building Exercise",
+                        "description": "Complete 100 push-ups in sets throughout the day to build mental toughness",
+                        "category": "health",
+                        "difficulty": difficulty,
+                        "xp": 15
+                    }
+                ]
+                
+                items = []
+                for task in error_tasks:
+                    alignment = calculate_goal_alignment(task["category"], active_goals)
+                    task.update({
+                        "frequency": frequency,
+                        "goal_alignment": alignment
                     })
+                    items.append(task)
 
     # Create tasks with enhanced properties
     tasks: List[Task] = []

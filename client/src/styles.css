@@ -224,6 +224,57 @@ body {
   text-shadow: 0 0 5px var(--primary-glow);
 }
 
+/* Quest Actions Container */
+.quest-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Active/Inactive Button States */
+.active-btn {
+  border-color: #10B981 !important;
+  color: #10B981 !important;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.active-btn:hover {
+  border-color: #10B981 !important;
+  box-shadow: 0 0 10px #10B981;
+  text-shadow: 0 0 5px #10B981;
+}
+
+.inactive-btn {
+  border-color: #6B7280 !important;
+  color: #6B7280 !important;
+  background: rgba(107, 114, 128, 0.1);
+}
+
+.inactive-btn:hover {
+  border-color: #9CA3AF !important;
+  box-shadow: 0 0 10px #9CA3AF;
+  text-shadow: 0 0 5px #9CA3AF;
+}
+
+/* Complete Button */
+.complete-btn {
+  border-color: var(--primary-glow) !important;
+  color: var(--primary-glow) !important;
+}
+
+.complete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #6B7280 !important;
+  color: #6B7280 !important;
+}
+
+.complete-btn:disabled:hover {
+  border-color: #6B7280 !important;
+  box-shadow: none;
+  text-shadow: none;
+}
+
 .nav-link {
   color: white;
   text-decoration: none;

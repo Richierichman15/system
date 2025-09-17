@@ -101,9 +101,19 @@ export default function Tasks() {
     }
   }
 
+  async function toggleActive(id) {
+    try {
+      await api.toggleTaskActive(id)
+      loadTasks()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   const filteredTasks = tasks.filter(task => {
-    if (filter === 'active') return !task.completed
-    if (filter === 'completed') return task.completed
+    if (filter === 'all') return !task.completed // Show all incomplete tasks
+    if (filter === 'active') return !task.completed && task.active // Show only active incomplete tasks
+    if (filter === 'completed') return task.completed // Show only completed tasks
     return true
   })
 
@@ -198,13 +208,23 @@ export default function Tasks() {
                 </div>
                 
                 {!task.completed ? (
-                  <button 
-                    onClick={() => completeTask(task.id)}
-                    className="quest-btn"
-                  >
-                    <i className="fas fa-check"></i>
-                    Complete
-                  </button>
+                  <div className="quest-actions">
+                    <button 
+                      onClick={() => toggleActive(task.id)}
+                      className={`quest-btn ${task.active ? 'active-btn' : 'inactive-btn'}`}
+                    >
+                      <i className={`fas ${task.active ? 'fa-pause' : 'fa-play'}`}></i>
+                      {task.active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button 
+                      onClick={() => completeTask(task.id)}
+                      className="quest-btn complete-btn"
+                      disabled={!task.active}
+                    >
+                      <i className="fas fa-check"></i>
+                      Complete
+                    </button>
+                  </div>
                 ) : (
                   <div className="completed-indicator">
                     <i className="fas fa-check-circle"></i>

@@ -164,6 +164,7 @@ class Task(SQLModel, table=True):
     goal_alignment: float = Field(default=0.5, description="How well this task aligns with user goals (0.0 to 1.0)")
     is_recurring: bool = Field(default=False)
     recurring_interval: Optional[int] = Field(default=None, description="Days between recurrence")
+    active: bool = Field(default=False, description="Whether the task is actively being pursued")
     completed: bool = False
     completed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
