@@ -1,5 +1,5 @@
 # Multi-stage build to handle rollup issues
-FROM node:20-alpine AS builder
+FROM node:20.19.0-alpine AS builder
 
 # Set working directory
 WORKDIR /app
