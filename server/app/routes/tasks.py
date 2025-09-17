@@ -85,7 +85,7 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
         session.add(profile)
         session.flush()
 
-    # Store old level for level-up detection
+    # Store old level for level-up detection  
     old_level = profile.level
     old_xp = profile.xp
     
@@ -99,8 +99,15 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
     profile.xp += xp_reward
     
     # Update level and skill points
-    profile.level = profile.calculate_level()
-    profile.skill_points = profile.xp // 100
+    new_level = profile.calculate_level()
+    old_level = profile.level
+    profile.level = new_level
+    
+    # Award skill points based on level, not raw XP
+    # 1 skill point per level + bonus skill points for higher levels
+    base_skill_points = profile.level - 1  # 1 skill point per level beyond 1
+    bonus_skill_points = max(0, (profile.level - 10) * 2) if profile.level > 10 else 0  # 2 extra per level after 10
+    profile.skill_points = base_skill_points + bonus_skill_points
     
     # Apply skill bonuses if any
     skill_bonuses = {}
@@ -145,9 +152,9 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
         "task": task,
         "profile": profile,
         "xp_gained": xp_reward,
-        "level_up": profile.level > old_level,
+        "level_up": new_level > old_level,
         "old_level": old_level,
-        "new_level": profile.level,
+        "new_level": new_level,
         "achievements": new_achievements,
         "skill_bonuses": skill_bonuses
     }

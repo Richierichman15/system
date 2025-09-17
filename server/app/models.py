@@ -49,23 +49,81 @@ class UserProfile(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     def calculate_level(self) -> int:
-        """Calculate level based on XP using exponential scaling"""
+        """Calculate level based on XP using challenging exponential scaling"""
         if self.xp <= 0:
             return 1
-        # Level formula: level = floor(sqrt(xp/50)) + 1
-        # This means: Level 2 = 50 XP, Level 3 = 200 XP, Level 4 = 450 XP, etc.
-        return int(math.sqrt(self.xp / 50)) + 1
+        
+        # More challenging progression - each level requires significantly more XP
+        # Level 2 = 100 XP, Level 3 = 300 XP, Level 4 = 600 XP, Level 5 = 1000 XP, etc.
+        # Formula: level = floor(sqrt(xp/25)) * 0.5 + 1, but with discrete level thresholds
+        
+        level_thresholds = [
+            0,      # Level 1
+            100,    # Level 2 
+            300,    # Level 3
+            600,    # Level 4
+            1000,   # Level 5
+            1500,   # Level 6
+            2100,   # Level 7
+            2800,   # Level 8
+            3600,   # Level 9
+            4500,   # Level 10
+            5500,   # Level 11
+            6600,   # Level 12
+            7800,   # Level 13
+            9100,   # Level 14
+            10500,  # Level 15
+            12000,  # Level 16
+            13600,  # Level 17
+            15300,  # Level 18
+            17100,  # Level 19
+            19000,  # Level 20
+        ]
+        
+        for level, threshold in enumerate(level_thresholds):
+            if self.xp < threshold:
+                return max(1, level)
+        
+        # For levels beyond 20, use exponential formula
+        # Each level past 20 requires 2000 more XP than the previous gap
+        if self.xp >= 19000:
+            excess_xp = self.xp - 19000
+            additional_levels = int(excess_xp // 2500)  # 2500 XP per level beyond 20
+            return min(20 + additional_levels, 50)  # Cap at level 50
+        
+        return 20
     
     def xp_for_next_level(self) -> int:
         """Calculate XP needed for next level"""
-        next_level = self.level + 1
-        return ((next_level - 1) ** 2) * 50
+        current_level = self.calculate_level()
+        
+        level_thresholds = [
+            0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500,
+            6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000
+        ]
+        
+        if current_level < len(level_thresholds):
+            return level_thresholds[current_level]
+        else:
+            # For levels beyond 20
+            return 19000 + ((current_level - 19) * 2500)
     
     def xp_for_current_level(self) -> int:
         """Calculate XP needed for current level"""
-        if self.level <= 1:
+        current_level = self.calculate_level()
+        if current_level <= 1:
             return 0
-        return ((self.level - 1) ** 2) * 50
+            
+        level_thresholds = [
+            0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4500, 5500,
+            6600, 7800, 9100, 10500, 12000, 13600, 15300, 17100, 19000
+        ]
+        
+        if current_level <= len(level_thresholds):
+            return level_thresholds[current_level - 1]
+        else:
+            # For levels beyond 20
+            return 19000 + ((current_level - 20) * 2500)
     
     def progress_to_next_level(self) -> float:
         """Calculate progress percentage to next level (0.0 to 1.0)"""
