@@ -74,8 +74,9 @@ jobs:
     
     - name: Test Docker Compose
       run: |
-        docker-compose -f docker-compose.prod.yml config
-        docker-compose -f docker-compose.prod.yml build
+        docker compose -f docker-compose.prod.yml config
+        docker compose -f docker-compose.prod.yml build
+      working-directory: .
 
   deploy:
     runs-on: ubuntu-latest
