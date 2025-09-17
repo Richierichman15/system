@@ -17,9 +17,15 @@ export default defineConfig({
     },
     // Increase chunk size warning limit
     chunkSizeWarningLimit: 1000,
+    // Use esbuild for faster builds
+    minify: 'esbuild',
   },
   // Handle rollup issues in CI
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'axios'],
+  },
+  // Use esbuild for faster builds and to avoid rollup issues
+  esbuild: {
+    target: 'es2020',
   },
 })

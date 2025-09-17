@@ -13,7 +13,8 @@ COPY .npmrc ./
 
 # Clean install to avoid rollup issues
 RUN rm -rf node_modules package-lock.json && \
-    npm install --no-optional --legacy-peer-deps
+    npm install --legacy-peer-deps --no-optional && \
+    npm install rollup@^4.0.0 --save-dev --legacy-peer-deps || echo "Rollup install failed, continuing..."
 
 # Copy source code
 COPY . .

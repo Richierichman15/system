@@ -11,13 +11,11 @@ rm -rf node_modules package-lock.json
 
 # Install dependencies with specific flags for CI
 echo "📦 Installing dependencies..."
-npm install --no-optional --legacy-peer-deps
+npm install --legacy-peer-deps --no-optional
 
-# If rollup is still missing, install it explicitly
-if ! npm list rollup > /dev/null 2>&1; then
-    echo "🔧 Installing rollup explicitly..."
-    npm install rollup@^4.0.0 --save-dev
-fi
+# Try to install rollup explicitly if needed
+echo "🔧 Ensuring rollup is available..."
+npm install rollup@^4.0.0 --save-dev --legacy-peer-deps || echo "Rollup installation failed, continuing..."
 
 # Build the project
 echo "🏗️ Building project..."
