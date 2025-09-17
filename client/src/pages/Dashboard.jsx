@@ -31,6 +31,16 @@ export default function Dashboard() {
             <span>Skills & Abilities</span>
           </Link>
 
+          <Link to="/goals" className="menu-button">
+            <i className="fas fa-bullseye text-glow"></i>
+            <span>Goals & Objectives</span>
+          </Link>
+
+          <Link to="/achievements" className="menu-button">
+            <i className="fas fa-trophy text-glow"></i>
+            <span>Achievements</span>
+          </Link>
+
           <Link to="/world" className="menu-button">
             <i className="fas fa-globe text-glow"></i>
             <span>World Map</span>

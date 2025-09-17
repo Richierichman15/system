@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import tasks, profile, health, ai
+from .routes import tasks, profile, health, ai, achievements, goals
 from .db import create_db_and_tables
 import os
 from dotenv import load_dotenv
@@ -23,6 +23,8 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
     app.include_router(profile.router, prefix="/profile", tags=["profile"])
     app.include_router(ai.router, prefix="/ai", tags=["ai"])
+    app.include_router(achievements.router, prefix="/achievements", tags=["achievements"])
+    app.include_router(goals.router, prefix="/goals", tags=["goals"])
 
     return app
 

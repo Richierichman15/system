@@ -1,12 +1,18 @@
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import './App.css'
 import './styles.css'
+import './components/GameplayStyles.css'
 import Dashboard from './pages/Dashboard'
 import Tasks from './pages/Tasks'
 import Skills from './pages/Skills'
 import WorldMap from './pages/WorldMap'
 import Settings from './pages/Settings'
+import Achievements from './pages/Achievements'
+import Goals from './pages/Goals'
 import StatsHeader from './components/StatsHeader'
+import NotificationSystem from './components/NotificationSystem'
+import { api } from './api'
 
 function Nav() {
   const location = useLocation()
@@ -49,6 +55,11 @@ function Nav() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Initialize achievements on app start
+    api.initializeAchievements().catch(console.error)
+  }, [])
+
   return (
     <BrowserRouter>
       <div className="bg-grid-pattern min-h-screen">
@@ -59,9 +70,12 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/world" element={<WorldMap />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/goals" element={<Goals />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
+        <NotificationSystem />
       </div>
     </BrowserRouter>
   )

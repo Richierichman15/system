@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlmodel import Session, select
 from ..db import get_session
-from ..models import Task
+from ..models import Task, UserProfile, Goal
 from typing import List, Dict, Any
 import os
 import json
@@ -39,6 +39,63 @@ def store_in_cache(cache_key: str, tasks: List[Dict]):
     }
 
 
+def get_user_context(session: Session) -> Dict[str, Any]:
+    """Get user profile and goals for better AI context"""
+    profile = session.get(UserProfile, 1)
+    if not profile:
+        profile = UserProfile(id=1)
+        session.add(profile)
+        session.commit()
+        session.refresh(profile)
+    
+    # Get active goals
+    goals = session.exec(select(Goal).where(Goal.is_active == True)).all()
+    
+    context = {
+        "profile": {
+            "level": profile.level,
+            "preferred_difficulty": profile.preferred_difficulty,
+            "focus_areas": profile.get_focus_areas(),
+            "legacy_goals": profile.goals or ""
+        },
+        "goals": [
+            {
+                "title": goal.title,
+                "category": goal.category,
+                "priority": goal.priority,
+                "progress": goal.progress
+            }
+            for goal in goals
+        ]
+    }
+    
+    return context
+
+
+def calculate_goal_alignment(task_category: str, user_goals: List[Dict]) -> float:
+    """Calculate how well a task aligns with user goals"""
+    if not user_goals:
+        return 0.5  # Default alignment
+    
+    # Check for direct category matches
+    for goal in user_goals:
+        if goal["category"] == task_category:
+            # Higher priority goals get higher alignment scores
+            priority_multiplier = {
+                "critical": 1.0,
+                "high": 0.8,
+                "medium": 0.6,
+                "low": 0.4
+            }.get(goal["priority"], 0.5)
+            
+            # Incomplete goals get higher alignment
+            progress_factor = 1.0 - goal["progress"]
+            
+            return min(0.9, priority_multiplier * progress_factor + 0.1)
+    
+    return 0.3  # Low alignment if no category match
+
+
 def background_ollama_request(prompt: str):
     """Make Ollama request in background to warm up the model"""
     try:
@@ -46,13 +103,13 @@ def background_ollama_request(prompt: str):
         httpx.post(
             ollama_url,
             json={
-                "model": "tinyllama:latest",  # Use the same model for consistency
+                "model": "tinyllama:latest",
                 "prompt": prompt,
                 "options": {
                     "temperature": 0.5,
                     "top_k": 10,
                     "top_p": 0.7,
-                    "num_predict": 5  # Just generate a few tokens to warm up
+                    "num_predict": 5
                 }
             },
             timeout=5.0
@@ -82,11 +139,35 @@ def generate_tasks(
             detail="Please wait a moment before generating more tasks"
         )
 
-    goals: str = payload.get("goals", "").strip()[:200]  # Limit input size
+    # Get user context for better AI generation
+    user_context = get_user_context(session)
     frequency: str = payload.get("frequency", "daily")
     
+    # Build comprehensive context for AI
+    goals_text = user_context["profile"]["legacy_goals"]
+    active_goals = user_context["goals"]
+    focus_areas = user_context["profile"]["focus_areas"]
+    difficulty = user_context["profile"]["preferred_difficulty"]
+    
+    # Create a rich context string
+    context_parts = []
+    if goals_text:
+        context_parts.append(f"General goals: {goals_text}")
+    
+    if active_goals:
+        goal_descriptions = []
+        for goal in active_goals:
+            progress_pct = int(goal["progress"] * 100)
+            goal_descriptions.append(f"{goal['title']} ({goal['category']}, {goal['priority']} priority, {progress_pct}% complete)")
+        context_parts.append(f"Specific goals: {'; '.join(goal_descriptions)}")
+    
+    if focus_areas:
+        context_parts.append(f"Focus areas: {', '.join(focus_areas)}")
+    
+    full_context = "; ".join(context_parts) if context_parts else "General productivity and self-improvement"
+    
     # Check cache first
-    cache_key = f"{goals}:{frequency}"
+    cache_key = f"{full_context[:100]}:{frequency}:{difficulty}"
     cached_items = get_cached_tasks(cache_key)
     if cached_items:
         print("Using cached tasks")
@@ -94,60 +175,60 @@ def generate_tasks(
     else:
         # Generate tasks using AI
         if ollama is None:
-            print("Ollama not available, using fallback tasks")
-            # Lightweight fallback tasks
-            items = [
-                {
-                    "title": "Quick Study Session",
-                    "description": "15 minutes focused learning",
+            print("Ollama not available, using enhanced fallback tasks")
+            # Enhanced fallback tasks based on user context
+            categories = ["career", "health", "learning"] if not focus_areas else focus_areas[:3]
+            items = []
+            
+            for i, category in enumerate(categories):
+                base_xp = {"easy": 10, "medium": 15, "hard": 25, "expert": 40}.get(difficulty, 15)
+                alignment = calculate_goal_alignment(category, active_goals)
+                
+                items.append({
+                    "title": f"{category.title()} Focus Session",
+                    "description": f"Work on {category}-related tasks for 25 minutes",
                     "frequency": frequency,
-                    "xp": 15
-                },
-                {
-                    "title": "Health Check",
-                    "description": "5 minute stretching break",
-                    "frequency": frequency,
-                    "xp": 10
-                },
-                {
-                    "title": "Daily Progress",
-                    "description": "Make progress on your goals",
-                    "frequency": frequency,
-                    "xp": 15
-                }
-            ]
+                    "category": category,
+                    "difficulty": difficulty,
+                    "goal_alignment": alignment,
+                    "xp": base_xp
+                })
+                
+                if len(items) >= 3:
+                    break
         else:
             try:
                 print("Sending request to Ollama...")
-                # Use direct HTTP request to Ollama with optimized settings
                 ollama_url = "http://localhost:11434/api/generate"
                 
-                # Ultra-concise prompt for faster generation
-                prompt = (
-                    "Create 3 tasks as JSON array:\n"
-                    f"Goals: {goals}\n"
-                    f"Frequency: {frequency}\n"
-                    '[{"title":"Task","description":"Action","xp":20}]\n'
-                    "Short titles, brief descriptions, xp:10-30."
-                )
-                
+                # Enhanced prompt with user context
+                prompt = f"""Create 3 personalized tasks as JSON array:
+Context: {full_context}
+Frequency: {frequency}
+Difficulty: {difficulty}
+User Level: {user_context['profile']['level']}
+
+Format: [{{"title":"Task Name","description":"Specific action","category":"career|health|personal|financial|learning|relationships","difficulty":"{difficulty}","xp":20}}]
+
+Make tasks specific, actionable, and aligned with the user's goals. Categories should match their focus areas. XP should reflect difficulty: easy(10-15), medium(15-25), hard(25-40), expert(40-60)."""
+
                 response = httpx.post(
                     ollama_url,
                     json={
-                        "model": "tinyllama:latest",  # Tiny model for speed
-                        "prompt": f"Return only a JSON array of tasks: {prompt}",
+                        "model": "tinyllama:latest",
+                        "prompt": prompt,
                         "options": {
-                            "temperature": 0.5,
-                            "top_k": 10,
-                            "top_p": 0.7,
-                            "num_ctx": 256,  # Even smaller context
-                            "num_predict": 150,  # Limit output size
-                            "mirostat": 1,  # Enable adaptive sampling
-                            "mirostat_eta": 0.1,  # Lower is faster
-                            "mirostat_tau": 5.0  # Lower is more deterministic
+                            "temperature": 0.7,  # Slightly higher for more creativity
+                            "top_k": 15,
+                            "top_p": 0.8,
+                            "num_ctx": 512,  # Larger context for better understanding
+                            "num_predict": 200,
+                            "mirostat": 1,
+                            "mirostat_eta": 0.1,
+                            "mirostat_tau": 5.0
                         }
                     },
-                    timeout=10.0  # Even shorter timeout
+                    timeout=15.0
                 )
                 
                 if not response.is_success:
@@ -176,41 +257,43 @@ def generate_tasks(
                         content = content[4:].strip()
                 
                 try:
-                    items = json.loads(content)[:3]  # Limit to 3 tasks max
+                    items = json.loads(content)[:3]
                 except json.JSONDecodeError as e:
                     print(f"JSON decode error: {e}")
                     print(f"Content was: {content}")
-                    # Fall back to default tasks
-                    items = [
-                        {
-                            "title": "Focus Session",
-                            "description": "Complete a 25-minute focused work session",
+                    # Fall back to context-aware default tasks
+                    items = []
+                    categories = focus_areas[:3] if focus_areas else ["personal", "health", "learning"]
+                    
+                    for category in categories:
+                        base_xp = {"easy": 10, "medium": 15, "hard": 25, "expert": 40}.get(difficulty, 15)
+                        alignment = calculate_goal_alignment(category, active_goals)
+                        
+                        items.append({
+                            "title": f"Focus on {category.title()}",
+                            "description": f"Complete a {category}-related task to advance your goals",
                             "frequency": frequency,
-                            "xp": 15
-                        },
-                        {
-                            "title": "Skill Development",
-                            "description": "Practice a new skill for 20 minutes",
-                            "frequency": frequency,
-                            "xp": 20
-                        },
-                        {
-                            "title": "Reflection Time",
-                            "description": "Take 10 minutes to reflect on your progress",
-                            "frequency": frequency,
-                            "xp": 10
-                        }
-                    ]
+                            "category": category,
+                            "difficulty": difficulty,
+                            "goal_alignment": alignment,
+                            "xp": base_xp
+                        })
                 
-                # Simple validation without excessive processing
+                # Enhanced validation and processing
                 cleaned_items = []
                 for item in items:
                     if isinstance(item, dict) and "title" in item:
+                        category = item.get("category", "general")
+                        alignment = calculate_goal_alignment(category, active_goals)
+                        
                         cleaned_item = {
                             "title": str(item.get("title", ""))[:50],
-                            "description": str(item.get("description", ""))[:100],
+                            "description": str(item.get("description", ""))[:150],
                             "frequency": frequency,
-                            "xp": min(max(int(item.get("xp", 15)), 10), 30)
+                            "category": category,
+                            "difficulty": item.get("difficulty", difficulty),
+                            "goal_alignment": alignment,
+                            "xp": min(max(int(item.get("xp", 15)), 5), 100)
                         }
                         cleaned_items.append(cleaned_item)
                 items = cleaned_items[:3]
@@ -221,46 +304,53 @@ def generate_tasks(
                 
             except Exception as e:
                 print(f"Task generation error: {e}")
-                # Fall back to default tasks
-                items = [
-                    {
-                        "title": "Focus Session",
-                        "description": "Complete a 25-minute focused work session",
+                # Enhanced fallback with user context
+                items = []
+                categories = focus_areas[:3] if focus_areas else ["personal", "health", "learning"]
+                
+                for category in categories:
+                    base_xp = {"easy": 10, "medium": 15, "hard": 25, "expert": 40}.get(difficulty, 15)
+                    alignment = calculate_goal_alignment(category, active_goals)
+                    
+                    items.append({
+                        "title": f"{category.title()} Progress",
+                        "description": f"Make meaningful progress on your {category} goals",
                         "frequency": frequency,
-                        "xp": 15
-                    },
-                    {
-                        "title": "Skill Development",
-                        "description": "Practice a new skill for 20 minutes",
-                        "frequency": frequency,
-                        "xp": 20
-                    },
-                    {
-                        "title": "Reflection Time",
-                        "description": "Take 10 minutes to reflect on your progress",
-                        "frequency": frequency,
-                        "xp": 10
-                    }
-                ]
+                        "category": category,
+                        "difficulty": difficulty,
+                        "goal_alignment": alignment,
+                        "xp": base_xp
+                    })
 
-    # Limit number of tasks created
+    # Create tasks with enhanced properties
     tasks: List[Task] = []
-    for item in items[:3]:  # Extra safety limit
+    for item in items[:3]:
         try:
+            # Calculate XP with alignment bonus
+            base_xp = item.get("xp", 15)
+            alignment = item.get("goal_alignment", 0.5)
+            
             task = Task(
                 title=item["title"],
                 description=item["description"],
                 frequency=frequency,
-                xp=item["xp"],
+                category=item.get("category", "general"),
+                difficulty=item.get("difficulty", difficulty),
+                goal_alignment=alignment,
+                xp=base_xp,
                 created_at=datetime.utcnow()
             )
+            
+            # Calculate final XP with alignment bonus
+            task.xp = task.calculate_xp_reward(base_xp)
+            
             session.add(task)
             tasks.append(task)
         except Exception as e:
             print(f"Error creating task: {e}")
             continue
             
-    if tasks:  # Only commit if we have valid tasks
+    if tasks:
         session.commit()
         for task in tasks:
             session.refresh(task)

@@ -10,18 +10,90 @@ export const api = {
   },
 
   async updateProfile(data) {
-    const response = await axios.post(`${API_URL}/profile`, data)
+    const response = await axios.patch(`${API_URL}/profile`, data)
     return response.data
   },
 
   // Task endpoints
-  async listTasks() {
-    const response = await axios.get(`${API_URL}/tasks`)
+  async listTasks(params = {}) {
+    const response = await axios.get(`${API_URL}/tasks`, { params })
+    return response.data
+  },
+
+  async createTask(task) {
+    const response = await axios.post(`${API_URL}/tasks`, task)
+    return response.data
+  },
+
+  async updateTask(id, data) {
+    const response = await axios.patch(`${API_URL}/tasks/${id}`, data)
+    return response.data
+  },
+
+  async deleteTask(id) {
+    const response = await axios.delete(`${API_URL}/tasks/${id}`)
     return response.data
   },
 
   async completeTask(id) {
     const response = await axios.post(`${API_URL}/tasks/${id}/complete`)
+    return response.data
+  },
+
+  async getTaskCategories() {
+    const response = await axios.get(`${API_URL}/tasks/categories`)
+    return response.data
+  },
+
+  // Achievement endpoints
+  async getAchievements() {
+    const response = await axios.get(`${API_URL}/achievements`)
+    return response.data
+  },
+
+  async getUnlockedAchievements() {
+    const response = await axios.get(`${API_URL}/achievements/unlocked`)
+    return response.data
+  },
+
+  async initializeAchievements() {
+    const response = await axios.post(`${API_URL}/achievements/initialize`)
+    return response.data
+  },
+
+  async getAchievementStats() {
+    const response = await axios.get(`${API_URL}/achievements/stats`)
+    return response.data
+  },
+
+  // Goals endpoints
+  async getGoals() {
+    const response = await axios.get(`${API_URL}/goals`)
+    return response.data
+  },
+
+  async createGoal(goal) {
+    const response = await axios.post(`${API_URL}/goals`, goal)
+    return response.data
+  },
+
+  async updateGoal(id, data) {
+    const response = await axios.patch(`${API_URL}/goals/${id}`, data)
+    return response.data
+  },
+
+  async deleteGoal(id) {
+    const response = await axios.delete(`${API_URL}/goals/${id}`)
+    return response.data
+  },
+
+  async updateGoalProgress(id, progressData) {
+    const response = await axios.post(`${API_URL}/goals/${id}/progress`, progressData)
+    return response.data
+  },
+
+  async getGoalCategories() {
+    const response = await axios.get(`${API_URL}/goals/categories`)
     return response.data
   },
 
