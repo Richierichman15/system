@@ -1,48 +1,11 @@
 import axios from 'axios'
 
-// Environment-aware API URL
-const API_URL = import.meta.env.VITE_API_URL || 
-  (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '/api')
-
-// Simple in-memory cache for API responses
-const cache = new Map()
-const CACHE_DURATION = 30000 // 30 seconds
-
-function getCacheKey(url, params = {}) {
-  return `${url}?${JSON.stringify(params)}`
-}
-
-function getCached(key) {
-  const cached = cache.get(key)
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data
-  }
-  cache.delete(key)
-  return null
-}
-
-function setCache(key, data) {
-  cache.set(key, { data, timestamp: Date.now() })
-}
-
-// Enhanced axios instance with caching
-const apiClient = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const API_URL = 'http://localhost:8001'
 
 export const api = {
-  // Profile endpoints with caching
+  // Profile endpoints
   async getProfile() {
-    const cacheKey = getCacheKey('/profile')
-    const cached = getCached(cacheKey)
-    if (cached) return cached
-
-    const response = await apiClient.get('/profile')
-    setCache(cacheKey, response.data)
+    const response = await axios.get(`${API_URL}/profile`)
     return response.data
   },
 
@@ -108,7 +71,7 @@ export const api = {
     return response.data
   },
 
-  // Goals endpoints
+  // Goal endpoints
   async getGoals() {
     const response = await axios.get(`${API_URL}/goals`)
     return response.data
@@ -124,13 +87,13 @@ export const api = {
     return response.data
   },
 
-  async deleteGoal(id) {
-    const response = await axios.delete(`${API_URL}/goals/${id}`)
+  async updateGoalProgress(id, data) {
+    const response = await axios.patch(`${API_URL}/goals/${id}/progress`, data)
     return response.data
   },
 
-  async updateGoalProgress(id, progressData) {
-    const response = await axios.post(`${API_URL}/goals/${id}/progress`, progressData)
+  async deleteGoal(id) {
+    const response = await axios.delete(`${API_URL}/goals/${id}`)
     return response.data
   },
 

@@ -110,6 +110,28 @@ export default function Tasks() {
     }
   }
 
+  async function deleteTask(id) {
+    if (!confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
+      return
+    }
+    
+    try {
+      await api.deleteTask(id)
+      loadTasks()
+      
+      // Show deletion notification
+      window.dispatchEvent(new CustomEvent('game-notification', {
+        detail: {
+          type: 'info',
+          message: 'Quest deleted successfully',
+          duration: 2000
+        }
+      }))
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   const filteredTasks = tasks.filter(task => {
     if (filter === 'all') return !task.completed // Show all incomplete tasks
     if (filter === 'active') return !task.completed && task.active // Show only active incomplete tasks
@@ -224,16 +246,36 @@ export default function Tasks() {
                       <i className="fas fa-check"></i>
                       Complete
                     </button>
+                    <button 
+                      onClick={() => deleteTask(task.id)}
+                      className="quest-btn delete-btn"
+                      title="Delete Quest"
+                    >
+                      <i className="fas fa-trash"></i>
+                      Delete
+                    </button>
                   </div>
                 ) : (
-                  <div className="completed-indicator">
-                    <i className="fas fa-check-circle"></i>
-                    Completed
-                    {task.completed_at && (
-                      <span className="completion-time">
-                        {new Date(task.completed_at).toLocaleDateString()}
-                      </span>
-                    )}
+                  <div>
+                    <div className="completed-indicator">
+                      <i className="fas fa-check-circle"></i>
+                      Completed
+                      {task.completed_at && (
+                        <span className="completion-time">
+                          {new Date(task.completed_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="quest-actions">
+                      <button 
+                        onClick={() => deleteTask(task.id)}
+                        className="quest-btn delete-btn"
+                        title="Delete Quest"
+                      >
+                        <i className="fas fa-trash"></i>
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

@@ -226,7 +226,6 @@ def check_achievements(profile: UserProfile, session: Session) -> List[Achieveme
     
     return new_achievements
 
-
 def update_goal_progress(task: Task, session: Session) -> List[Dict]:
     """Update goal progress based on completed task"""
     goal_updates = []

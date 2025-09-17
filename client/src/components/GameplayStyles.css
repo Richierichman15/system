@@ -144,6 +144,46 @@
   box-shadow: none;
 }
 
+.delete-btn {
+  background: linear-gradient(135deg, #EF4444, #DC2626) !important;
+  color: #fff !important;
+}
+
+.delete-btn:hover {
+  background: linear-gradient(135deg, #DC2626, #B91C1C) !important;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4) !important;
+}
+
+.quest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.quest-actions .quest-btn {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+.quest-actions .quest-btn i {
+  font-size: 0.7rem;
+}
+
+/* Ensure quest cards have proper spacing for buttons */
+.quest-card {
+  overflow: hidden;
+}
+
+.quest-footer {
+  padding-bottom: 12px;
+}
+
 .completed-indicator {
   color: #10B981;
   display: flex;

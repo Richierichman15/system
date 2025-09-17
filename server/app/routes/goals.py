@@ -63,16 +63,14 @@ def update_goal(goal_id: int, goal_data: dict, session: Session = Depends(get_se
 
 @router.delete("/{goal_id}")
 def delete_goal(goal_id: int, session: Session = Depends(get_session)):
-    """Delete (deactivate) a goal"""
+    """Delete a goal"""
     goal = session.get(Goal, goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    goal.is_active = False
-    goal.updated_at = datetime.utcnow()
-    session.add(goal)
+    session.delete(goal)
     session.commit()
-    return {"message": "Goal deactivated successfully"}
+    return {"message": "Goal deleted successfully"}
 
 
 @router.post("/{goal_id}/progress")
