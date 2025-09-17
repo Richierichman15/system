@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select, Session
 from ..db import get_session
 from ..models import Goal, UserProfile
-from datetime import datetime
+from datetime import datetime, date
 
 
 router = APIRouter()
@@ -24,6 +24,14 @@ def create_goal(goal_data: dict, session: Session = Depends(get_session)):
         user = UserProfile(id=1)
         session.add(user)
         session.flush()
+    
+    # Parse target_date if it's a string
+    if "target_date" in goal_data and goal_data["target_date"]:
+        try:
+            if isinstance(goal_data["target_date"], str):
+                goal_data["target_date"] = date.fromisoformat(goal_data["target_date"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     
     goal = Goal(**goal_data)
     goal.user_id = 1

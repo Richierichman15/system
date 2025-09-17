@@ -201,16 +201,34 @@ def generate_tasks(
                 print("Sending request to Ollama...")
                 ollama_url = "http://localhost:11434/api/generate"
                 
-                # Enhanced prompt with user context
-                prompt = f"""Create 3 personalized tasks as JSON array:
-Context: {full_context}
-Frequency: {frequency}
-Difficulty: {difficulty}
+                # Enhanced prompt with detailed goal context
+                goals_context = ""
+                if user_context['active_goals']:
+                    goals_list = []
+                    for goal in user_context['active_goals']:
+                        progress_pct = int(goal.get('progress', 0) * 100)
+                        goals_list.append(f"- {goal['title']} ({goal['category']}, {goal['priority']} priority, {progress_pct}% complete)")
+                    goals_context = f"Active Goals:\n" + "\n".join(goals_list)
+                else:
+                    goals_context = "No specific goals set yet."
+
+                prompt = f"""Create 3 personalized tasks that directly help achieve the user's goals:
+
+{goals_context}
+
 User Level: {user_context['profile']['level']}
+Frequency: {frequency}
+Preferred Difficulty: {difficulty}
 
-Format: [{{"title":"Task Name","description":"Specific action","category":"career|health|personal|financial|learning|relationships","difficulty":"{difficulty}","xp":20}}]
+Return ONLY a JSON array:
+[{{"title":"Specific Task","description":"Actionable step","category":"career|health|personal|financial|learning|relationships","difficulty":"{difficulty}","xp":20,"goal_relation":"Brief explanation of how this helps achieve goals"}}]
 
-Make tasks specific, actionable, and aligned with the user's goals. Categories should match their focus areas. XP should reflect difficulty: easy(10-15), medium(15-25), hard(25-40), expert(40-60)."""
+Requirements:
+- Each task should directly contribute to at least one active goal
+- Be specific and actionable (not vague)
+- Match the user's skill level (Level {user_context['profile']['level']})
+- XP range: easy(10-15), medium(15-25), hard(25-40), expert(40-60)
+- Include goal_relation field explaining the connection"""
 
                 response = httpx.post(
                     ollama_url,

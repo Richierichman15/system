@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 from ..db import get_session
-from ..models import Task, UserProfile, Achievement
+from ..models import Task, UserProfile, Achievement, Goal
 from sqlmodel import Session
 from datetime import datetime, timedelta
 import json
@@ -142,6 +142,9 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
     # Check for achievements
     new_achievements = check_achievements(profile, session)
     
+    # Update goal progress based on task completion
+    goal_updates = update_goal_progress(task, session)
+    
     session.add(task)
     session.add(profile)
     session.commit()
@@ -156,7 +159,8 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
         "old_level": old_level,
         "new_level": new_level,
         "achievements": new_achievements,
-        "skill_bonuses": skill_bonuses
+        "skill_bonuses": skill_bonuses,
+        "goal_progress": goal_updates
     }
 
 
@@ -205,3 +209,80 @@ def check_achievements(profile: UserProfile, session: Session) -> List[Achieveme
             new_achievements.append(achievement)
     
     return new_achievements
+
+
+def update_goal_progress(task: Task, session: Session) -> List[Dict]:
+    """Update goal progress based on completed task"""
+    goal_updates = []
+    
+    # Get all active goals that might be related to this task
+    active_goals = session.exec(
+        select(Goal).where(Goal.user_id == 1, Goal.completed == False)
+    ).all()
+    
+    if not active_goals:
+        return goal_updates
+    
+    # Calculate progress increase based on task properties
+    base_progress_increase = 0.0
+    
+    # Base progress based on difficulty
+    difficulty_progress = {
+        "easy": 0.05,     # 5% progress
+        "medium": 0.08,   # 8% progress  
+        "hard": 0.12,     # 12% progress
+        "expert": 0.20    # 20% progress
+    }
+    base_progress_increase = difficulty_progress.get(task.difficulty, 0.05)
+    
+    # Bonus for high goal alignment
+    if hasattr(task, 'goal_alignment_score') and task.goal_alignment_score:
+        alignment_bonus = task.goal_alignment_score * 0.1  # Up to 10% bonus
+    else:
+        alignment_bonus = task.goal_alignment * 0.1 if hasattr(task, 'goal_alignment') else 0.0
+    
+    total_progress_increase = base_progress_increase + alignment_bonus
+    
+    # Update goals based on category and content matching
+    for goal in active_goals:
+        progress_added = 0.0
+        reason = ""
+        
+        # Category matching
+        if task.category == goal.category:
+            progress_added = total_progress_increase
+            reason = f"Task category '{task.category}' matches goal"
+        # Keyword matching in titles/descriptions
+        elif goal.title.lower() in task.title.lower() or task.title.lower() in goal.title.lower():
+            progress_added = total_progress_increase * 0.8  # 80% for keyword match
+            reason = f"Task relates to goal '{goal.title}'"
+        # General learning/growth tasks boost personal goals
+        elif goal.category == "personal" and task.category in ["learning", "health"]:
+            progress_added = total_progress_increase * 0.3  # 30% for general growth
+            reason = f"General growth task supports personal development"
+        
+        # Apply progress update
+        if progress_added > 0:
+            old_progress = goal.progress
+            goal.progress = min(goal.progress + progress_added, 1.0)  # Cap at 100%
+            goal.updated_at = datetime.utcnow()
+            
+            # Mark as completed if reached 100%
+            if goal.progress >= 1.0 and not goal.completed:
+                goal.completed = True
+                goal.completed_at = datetime.utcnow()
+                reason += " - GOAL COMPLETED! 🎉"
+            
+            goal_updates.append({
+                "goal_id": goal.id,
+                "goal_title": goal.title,
+                "old_progress": old_progress,
+                "new_progress": goal.progress,
+                "progress_added": progress_added,
+                "reason": reason,
+                "completed": goal.completed
+            })
+            
+            session.add(goal)
+    
+    return goal_updates
