@@ -149,5 +149,55 @@ export const api = {
         loadingIndicator.remove()
       }
     }
+  },
+
+  // Advanced AI task generation with specialized models
+  async generateTasksAdvanced(data) {
+    const taskContainer = document.querySelector('.grid')
+    if (taskContainer) {
+      const loadingElement = document.createElement('div')
+      loadingElement.className = 'loading-indicator'
+      loadingElement.innerHTML = `
+        <div class="spinner"></div>
+        <p>Generating specialized quests...</p>
+      `
+      taskContainer.appendChild(loadingElement)
+    }
+    
+    try {
+      const response = await axios.post(`${API_URL}/ai/generate-advanced`, data)
+      return response.data
+    } catch (error) {
+      console.error('Error generating advanced tasks:', error)
+      throw error
+    } finally {
+      const loadingIndicator = document.querySelector('.loading-indicator')
+      if (loadingIndicator) {
+        loadingIndicator.remove()
+      }
+    }
+  },
+
+  // Submit feedback for AI learning
+  async submitTaskFeedback(taskId, rating, completed, completionTime = null) {
+    const response = await axios.post(`${API_URL}/ai/feedback`, {
+      task_id: taskId,
+      rating: rating,
+      completed: completed,
+      completion_time: completionTime
+    })
+    return response.data
+  },
+
+  // Get AI model statistics
+  async getAIModelStats() {
+    const response = await axios.get(`${API_URL}/ai/models/stats`)
+    return response.data
+  },
+
+  // Get available AI models
+  async getAvailableModels() {
+    const response = await axios.get(`${API_URL}/ai/models/available`)
+    return response.data
   }
 }

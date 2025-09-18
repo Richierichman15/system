@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Task
+from ..services.ai_models import ai_service, TaskType
 from typing import List, Dict, Any
 import os
 import json
@@ -332,3 +333,179 @@ Return only JSON array."""
         print("DEBUG: No tasks to commit")
     
     return tasks
+
+
+@router.post("/generate-advanced", response_model=List[Task])
+async def generate_tasks_advanced(
+    payload: dict, 
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
+    """
+    Advanced AI task generation with specialized models and custom training
+    """
+    # Rate limiting
+    ten_seconds_ago = datetime.utcnow() - timedelta(seconds=10)
+    recent_tasks = session.exec(
+        select(Task).where(Task.created_at > ten_seconds_ago)
+    ).all()
+    
+    if len(recent_tasks) > 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Please wait a moment before generating more tasks"
+        )
+
+    goals: str = payload.get("goals", "").strip()[:200]
+    frequency: str = payload.get("frequency", "daily")
+    task_category: str = payload.get("category", "general")
+    user_preferences: dict = payload.get("preferences", {})
+    
+    print(f"DEBUG: Advanced generation - goals: '{goals}', category: '{task_category}'")
+    
+    # Check cache first with category-specific key
+    cache_key = f"{goals}:{frequency}:{task_category}"
+    cached_items = get_cached_tasks(cache_key)
+    if cached_items:
+        print(f"DEBUG: Using cached tasks for key: {cache_key}")
+        items = cached_items
+    else:
+        try:
+            # Use advanced AI service
+            items = await ai_service.generate_tasks_with_model(
+                goals=goals,
+                frequency=frequency, 
+                task_category=task_category,
+                user_preferences=user_preferences
+            )
+            
+            # Store in cache
+            if items:
+                store_in_cache(cache_key, items)
+                
+        except Exception as e:
+            print(f"DEBUG: Advanced AI generation failed: {e}")
+            # Fallback to original generation
+            return await generate_tasks(payload, background_tasks, session)
+
+    # Create tasks with enhanced fields
+    tasks: List[Task] = []
+    for item in items[:3]:
+        try:
+            task = Task(
+                title=item["title"],
+                description=item["description"],
+                frequency=frequency,
+                difficulty=item.get("difficulty", "medium"),
+                category=item.get("category", task_category),
+                xp=item.get("xp", 20),
+                goal_alignment=0.0,
+                created_at=datetime.utcnow()
+            )
+            # Clamp XP to difficulty range
+            task.xp = task.calculate_xp_reward()
+            session.add(task)
+            tasks.append(task)
+        except Exception as e:
+            print(f"DEBUG: Error creating advanced task: {e}")
+            continue
+            
+    if tasks:
+        print(f"DEBUG: Committing {len(tasks)} advanced tasks to database")
+        session.commit()
+        for task in tasks:
+            session.refresh(task)
+        print(f"DEBUG: Successfully created advanced tasks with IDs: {[task.id for task in tasks]}")
+    else:
+        print("DEBUG: No advanced tasks to commit")
+    
+    return tasks
+
+
+@router.post("/feedback")
+def submit_task_feedback(
+    payload: dict,
+    session: Session = Depends(get_session)
+):
+    """
+    Submit feedback for task to improve AI generation
+    """
+    task_id = payload.get("task_id")
+    rating = payload.get("rating", 3)  # 1-5 scale
+    completed = payload.get("completed", False)
+    completion_time = payload.get("completion_time")  # seconds
+    
+    # Get the task
+    task = session.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Get user's current goals for training context
+    from ..models import UserProfile
+    profile = session.get(UserProfile, 1)
+    user_goals = profile.goals if profile else "No goals set"
+    
+    # Record feedback for AI learning
+    ai_service.record_task_feedback(
+        user_goals=user_goals,
+        generated_task={
+            "title": task.title,
+            "description": task.description,
+            "category": task.category,
+            "difficulty": task.difficulty,
+            "xp": task.xp
+        },
+        user_rating=rating,
+        completed=completed,
+        completion_time=completion_time
+    )
+    
+    return {"message": "Feedback recorded successfully"}
+
+
+@router.get("/models/stats")
+def get_ai_model_stats():
+    """
+    Get statistics about AI model performance and usage
+    """
+    return ai_service.get_model_stats()
+
+
+@router.get("/models/available")
+def get_available_models():
+    """
+    Get list of available AI models and their specializations
+    """
+    return {
+        "models": {
+            "fast": {
+                "name": "llama3.2:1b",
+                "description": "Quick responses, good for simple tasks",
+                "best_for": ["quick generation", "simple tasks"]
+            },
+            "balanced": {
+                "name": "llama3.2:3b", 
+                "description": "Good balance of speed and quality",
+                "best_for": ["general tasks", "fitness", "health"]
+            },
+            "creative": {
+                "name": "gemma2:2b",
+                "description": "Better for creative and personal tasks",
+                "best_for": ["creative projects", "personal goals", "hobbies"]
+            },
+            "analytical": {
+                "name": "llama3.2:3b",
+                "description": "Best for work and learning tasks",
+                "best_for": ["work tasks", "learning goals", "skill development"]
+            }
+        },
+        "task_specializations": {
+            "fitness": "balanced",
+            "learning": "analytical", 
+            "work": "analytical",
+            "personal": "creative",
+            "creative": "creative",
+            "social": "balanced",
+            "health": "balanced"
+        }
+    }

@@ -88,6 +88,8 @@ export default function Tasks() {
   }
 
   const [isGenerating, setIsGenerating] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState('general')
+  const [useAdvancedAI, setUseAdvancedAI] = useState(true)
 
   async function generateTasks() {
     try {
@@ -101,11 +103,27 @@ export default function Tasks() {
       const varietyWords = ['focus on', 'work towards', 'achieve', 'improve', 'develop']
       const randomWord = varietyWords[Math.floor(Math.random() * varietyWords.length)]
       
-      console.log('Generating tasks with goals:', `${randomWord} ${userGoals} [${timestamp}]`)
-      const result = await api.generateTasks({
-        goals: `${randomWord} ${userGoals} [${timestamp}]`, // Make each request unique
-        frequency: 'daily'
-      })
+      const goalText = `${randomWord} ${userGoals} [${timestamp}]`
+      console.log('Generating tasks with goals:', goalText)
+      
+      let result
+      if (useAdvancedAI) {
+        result = await api.generateTasksAdvanced({
+          goals: goalText,
+          frequency: 'daily',
+          category: selectedCategory,
+          preferences: {
+            preferred_model_type: selectedCategory === 'creative' ? 'creative' : 
+                                 selectedCategory === 'work' || selectedCategory === 'learning' ? 'analytical' : 'balanced'
+          }
+        })
+      } else {
+        result = await api.generateTasks({
+          goals: goalText,
+          frequency: 'daily'
+        })
+      }
+      
       console.log('Generated tasks:', result)
       console.log('Reloading tasks...')
       await loadTasks()
@@ -114,6 +132,15 @@ export default function Tasks() {
       setError(e.message)
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  async function submitTaskFeedback(taskId, rating, completed, completionTime = null) {
+    try {
+      await api.submitTaskFeedback(taskId, rating, completed, completionTime)
+      console.log('Feedback submitted for task', taskId)
+    } catch (e) {
+      console.error('Error submitting feedback:', e)
     }
   }
 
@@ -301,15 +328,66 @@ export default function Tasks() {
       </div>
 
       <div className="flex flex-col items-center mt-8">
-        <div className="flex gap-4 mb-4">
-          <button 
-            onClick={generateTasks} 
-            className="menu-button"
-            disabled={isGenerating}
-          >
-            <span>{isGenerating ? 'Generating...' : 'Generate New Quests'}</span>
-            <i className={`fas ${isGenerating ? 'fa-spinner fa-spin' : 'fa-magic'}`}></i>
-          </button>
+        <div className="glass-card" style={{ padding: '20px', marginBottom: '20px', maxWidth: '600px' }}>
+          <h3 style={{ marginBottom: '16px', textAlign: 'center' }}>AI Quest Generation</h3>
+          
+          <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ minWidth: '120px' }}>AI Mode:</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  className={`button-${useAdvancedAI ? 'primary' : 'secondary'}`}
+                  onClick={() => setUseAdvancedAI(true)}
+                  style={{ padding: '6px 12px', fontSize: '14px' }}
+                >
+                  Advanced AI
+                </button>
+                <button 
+                  className={`button-${!useAdvancedAI ? 'primary' : 'secondary'}`}
+                  onClick={() => setUseAdvancedAI(false)}
+                  style={{ padding: '6px 12px', fontSize: '14px' }}
+                >
+                  Standard
+                </button>
+              </div>
+            </div>
+            
+            {useAdvancedAI && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{ minWidth: '120px' }}>Category:</label>
+                <select 
+                  value={selectedCategory} 
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  style={{ padding: '6px', borderRadius: '4px', border: '1px solid #333', background: '#1a1a1a', color: 'white' }}
+                >
+                  <option value="general">General</option>
+                  <option value="fitness">Fitness & Health</option>
+                  <option value="learning">Learning & Education</option>
+                  <option value="work">Work & Career</option>
+                  <option value="personal">Personal Development</option>
+                  <option value="creative">Creative Projects</option>
+                  <option value="social">Social & Relationships</option>
+                </select>
+              </div>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button 
+              onClick={generateTasks} 
+              className="menu-button"
+              disabled={isGenerating}
+            >
+              <span>{isGenerating ? 'Generating...' : `Generate ${useAdvancedAI ? 'Specialized' : 'Standard'} Quests`}</span>
+              <i className={`fas ${isGenerating ? 'fa-spinner fa-spin' : useAdvancedAI ? 'fa-brain' : 'fa-magic'}`}></i>
+            </button>
+          </div>
+          
+          {useAdvancedAI && (
+            <div style={{ fontSize: '12px', textAlign: 'center', marginTop: '12px', opacity: '0.7' }}>
+              Using specialized AI model for {selectedCategory} tasks with custom learning
+            </div>
+          )}
         </div>
       </div>
 
