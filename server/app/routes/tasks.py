@@ -30,7 +30,7 @@ def list_tasks(
 @router.post("/", response_model=Task)
 def create_task(task: Task, session: Session = Depends(get_session)):
     task.id = None
-    # Calculate XP based on difficulty
+    # Clamp XP into difficulty range
     task.xp = task.calculate_xp_reward()
     session.add(task)
     session.commit()
@@ -48,8 +48,8 @@ def update_task(task_id: int, payload: dict, session: Session = Depends(get_sess
         if hasattr(task, key) and key != "id":
             setattr(task, key, value)
     
-    # Recalculate XP if difficulty changed
-    if "difficulty" in payload:
+    # Recalculate/clamp XP if difficulty or xp changed
+    if "difficulty" in payload or "xp" in payload:
         task.xp = task.calculate_xp_reward()
     
     task.updated_at = datetime.utcnow()
@@ -110,13 +110,12 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
     task.completed_at = datetime.utcnow()
     task.updated_at = datetime.utcnow()
     
-    # Calculate XP reward based on difficulty
-    xp_reward = task.calculate_xp_reward()
+    # Use clamped task XP directly
+    xp_reward = task.xp
     profile.xp += xp_reward
     
     # Update level and skill points
     new_level = profile.calculate_level()
-    old_level = profile.level
     profile.level = new_level
     
     # Award skill points based on level, not raw XP
@@ -157,6 +156,9 @@ def complete_task(task_id: int, session: Session = Depends(get_session)):
     
     # Check for achievements
     new_achievements = check_achievements(profile, session)
+
+    # Recalculate level again in case achievements granted XP
+    profile.level = profile.calculate_level()
     
     # Update goal progress based on task completion
     goal_updates = update_goal_progress(task, session)

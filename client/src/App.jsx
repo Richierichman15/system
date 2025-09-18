@@ -10,13 +10,14 @@ import Goals from './pages/Goals'
 import WorldMap from './pages/WorldMap'
 import Settings from './pages/Settings'
 import Achievements from './pages/Achievements'
+import Login from './pages/Login'
 import StatsHeader from './components/StatsHeader'
 import NotificationSystem from './components/NotificationSystem'
 import { api } from './api'
 
 function Nav() {
   const location = useLocation()
-  const showStats = location.pathname !== '/' && location.pathname !== '/settings'
+  const showStats = location.pathname !== '/' && location.pathname !== '/settings' && location.pathname !== '/login'
 
   return (
     <>
@@ -67,6 +68,7 @@ export default function App() {
         <main className="container">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/login" element={<Login />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/goals" element={<Goals />} />

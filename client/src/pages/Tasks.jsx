@@ -10,9 +10,12 @@ export default function Tasks() {
   async function loadTasks() {
     try {
       const data = await api.listTasks()
+      console.log('Loaded tasks:', data.length, 'tasks')
+      console.log('Latest task:', data[0])
       setTasks(data)
     } catch (e) {
       setError(e.message)
+      console.error('Error loading tasks:', e)
     }
   }
 
@@ -89,11 +92,24 @@ export default function Tasks() {
   async function generateTasks() {
     try {
       setIsGenerating(true)
-      await api.generateTasks({
-        goals: 'Improve productivity and skills',
+      // Get user's actual goals from profile
+      const profile = await api.getProfile()
+      const userGoals = profile.goals || 'Improve productivity and skills'
+      
+      // Add variety for different generations
+      const timestamp = Date.now()
+      const varietyWords = ['focus on', 'work towards', 'achieve', 'improve', 'develop']
+      const randomWord = varietyWords[Math.floor(Math.random() * varietyWords.length)]
+      
+      console.log('Generating tasks with goals:', `${randomWord} ${userGoals} [${timestamp}]`)
+      const result = await api.generateTasks({
+        goals: `${randomWord} ${userGoals} [${timestamp}]`, // Make each request unique
         frequency: 'daily'
       })
-      loadTasks()
+      console.log('Generated tasks:', result)
+      console.log('Reloading tasks...')
+      await loadTasks()
+      console.log('Tasks reloaded')
     } catch (e) {
       setError(e.message)
     } finally {

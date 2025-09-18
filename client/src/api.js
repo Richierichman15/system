@@ -1,8 +1,26 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8001'
+// Dynamic API URL based on current host
+const getApiUrl = () => {
+  const hostname = window.location.hostname
+  // If accessing via IP address, use the same IP for backend
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return `http://${hostname}:8000`
+  }
+  return 'http://localhost:8000'
+}
+
+const API_URL = getApiUrl()
 
 export const api = {
+  // Auth
+  async login({ username, password }) {
+    const response = await axios.post(`${API_URL}/auth/login`, { username, password })
+    const { token } = response.data
+    if (token) localStorage.setItem('auth_token', token)
+    return response.data
+  },
+
   // Profile endpoints
   async getProfile() {
     const response = await axios.get(`${API_URL}/profile`)
@@ -16,7 +34,9 @@ export const api = {
 
   // Task endpoints
   async listTasks(params = {}) {
-    const response = await axios.get(`${API_URL}/tasks`, { params })
+    // Add cache busting to ensure fresh data
+    const cacheParams = { ...params, _t: Date.now() }
+    const response = await axios.get(`${API_URL}/tasks`, { params: cacheParams })
     return response.data
   },
 

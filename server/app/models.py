@@ -73,17 +73,34 @@ class Task(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     def calculate_xp_reward(self, base_xp: int = None) -> int:
-        """Calculate XP reward based on difficulty"""
-        if base_xp is None:
-            base_xp = self.xp
-            
-        multipliers = {
-            "easy": 0.7,
-            "medium": 1.0,
-            "hard": 1.5,
-            "expert": 2.0
+        """Clamp or derive XP based on difficulty-specific ranges (no multiplying).
+
+        Ranges:
+        - easy:   5 - 20
+        - medium: 20 - 35
+        - hard:   35 - 50
+        - expert: 50 - 75 (fallback range)
+        """
+        # Determine range by difficulty
+        ranges = {
+            "easy": (5, 20),
+            "medium": (20, 35),
+            "hard": (35, 50),
+            "expert": (50, 75),
         }
-        return int(base_xp * multipliers.get(self.difficulty, 1.0))
+        xp_min, xp_max = ranges.get(self.difficulty, (20, 35))
+
+        # Choose candidate xp
+        candidate = self.xp if base_xp is None else base_xp
+        if candidate is None:
+            candidate = xp_min
+
+        # Clamp into the allowed range
+        if candidate < xp_min:
+            return xp_min
+        if candidate > xp_max:
+            return xp_max
+        return int(candidate)
 
 
 class Goal(SQLModel, table=True):

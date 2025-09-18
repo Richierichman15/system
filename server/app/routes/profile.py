@@ -16,6 +16,24 @@ def get_profile(session: Session = Depends(get_session)):
         session.add(profile)
         session.commit()
         session.refresh(profile)
+    
+    # Always recalculate level and skill points based on current XP
+    calculated_level = profile.calculate_level()
+    old_level = profile.level
+    profile.level = calculated_level
+    
+    # Always update skill points based on current level
+    base_skill_points = profile.level - 1  # 1 skill point per level beyond 1
+    bonus_skill_points = max(0, (profile.level - 10) * 2) if profile.level > 10 else 0  # 2 extra per level after 10
+    expected_skill_points = base_skill_points + bonus_skill_points
+    
+    # Update if level changed or skill points are incorrect
+    if old_level != calculated_level or profile.skill_points != expected_skill_points:
+        profile.skill_points = expected_skill_points
+        session.add(profile)
+        session.commit()
+        session.refresh(profile)
+    
     return profile
 
 
