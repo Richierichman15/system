@@ -106,13 +106,29 @@ class AIModelService:
     
     def get_custom_prompt(self, goals: str, task_category: str, frequency: str) -> str:
         """Generate a custom prompt based on learned user patterns"""
-        base_prompt = f"""Create 3 {frequency} tasks for goals: {goals}
+        
+        # Enhanced goal recognition for job applications and career development
+        job_keywords = ["job", "apply", "application", "career", "resume", "interview", "networking", "linkedin", "employment"]
+        is_job_related = any(keyword in goals.lower() for keyword in job_keywords)
+        
+        if is_job_related:
+            focus_text = "Focus specifically on job applications, career development, resume building, interview preparation, and professional networking."
+            # Force work category for job-related goals
+            if task_category == "general":
+                task_category = "work"
+        else:
+            focus_text = f"Focus on {task_category} activities that align with the stated goals."
+        
+        base_prompt = f"""Create 1-2 {frequency} tasks specifically aligned with these goals: {goals}
+
+{focus_text}
+
+IMPORTANT: Create tasks that directly help achieve the stated goals. If multiple goals are mentioned, prioritize the most recent or highest priority goals. Make tasks actionable and specific.
 
 Output must be valid JSON only:
 [
-{{"title":"Task Name","description":"What to do","difficulty":"easy","category":"{task_category}","xp":15}},
-{{"title":"Second Task","description":"What to do","difficulty":"medium","category":"{task_category}","xp":25}},
-{{"title":"Third Task","description":"What to do","difficulty":"hard","category":"{task_category}","xp":40}}
+{{"title":"Goal-aligned Task","description":"Specific action that directly helps achieve the goals","difficulty":"medium","category":"{task_category}","xp":25}},
+{{"title":"Second Goal Task","description":"Another specific action toward the goals","difficulty":"easy","category":"{task_category}","xp":15}}
 ]
 
 Categories: work, fitness, learning, social, personal, general
@@ -200,7 +216,7 @@ XP: easy=5-20, medium=20-35, hard=35-50"""
             tasks = json.loads(content)
             
             print(f"DEBUG: Successfully generated {len(tasks)} tasks with {model_name}")
-            return tasks[:3]  # Limit to 3 tasks
+            return tasks[:2]  # Limit to 1-2 tasks
             
         except Exception as e:
             print(f"DEBUG: Error with model {model_name}: {e}")

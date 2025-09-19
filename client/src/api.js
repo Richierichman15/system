@@ -117,6 +117,11 @@ export const api = {
     return response.data
   },
 
+  async completeGoal(id) {
+    const response = await axios.post(`${API_URL}/goals/${id}/complete`)
+    return response.data
+  },
+
   async getGoalCategories() {
     const response = await axios.get(`${API_URL}/goals/categories`)
     return response.data

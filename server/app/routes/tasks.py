@@ -240,17 +240,28 @@ def update_goal_progress(task: Task, session: Session) -> List[Dict]:
     if not active_goals:
         return goal_updates
     
+    # Get user profile goals for better matching
+    from ..models import UserProfile
+    profile = session.get(UserProfile, 1)
+    profile_goals_text = profile.goals.lower() if profile and profile.goals else ""
+    
     # Calculate progress increase based on task properties
     base_progress_increase = 0.0
     
     # Base progress based on difficulty
     difficulty_progress = {
-        "easy": 0.05,     # 5% progress
-        "medium": 0.08,   # 8% progress  
-        "hard": 0.12,     # 12% progress
-        "expert": 0.20    # 20% progress
+        "easy": 0.08,     # 8% progress (increased)
+        "medium": 0.12,   # 12% progress (increased)  
+        "hard": 0.18,     # 18% progress (increased)
+        "expert": 0.25    # 25% progress (increased)
     }
-    base_progress_increase = difficulty_progress.get(task.difficulty, 0.05)
+    base_progress_increase = difficulty_progress.get(task.difficulty, 0.08)
+    
+    # Check if this is an AI-generated goal-aligned task (created recently with goal alignment)
+    is_ai_generated = (
+        task.created_at and 
+        (datetime.utcnow() - task.created_at).total_seconds() < 300  # Created in last 5 minutes
+    )
     
     # Bonus for high goal alignment
     if hasattr(task, 'goal_alignment_score') and task.goal_alignment_score:
@@ -258,28 +269,59 @@ def update_goal_progress(task: Task, session: Session) -> List[Dict]:
     else:
         alignment_bonus = task.goal_alignment * 0.1 if hasattr(task, 'goal_alignment') else 0.0
     
-    total_progress_increase = base_progress_increase + alignment_bonus
+    # Extra bonus for AI-generated tasks (they're designed to be goal-aligned)
+    ai_bonus = 0.05 if is_ai_generated else 0.0
     
-    # Update goals based on category and content matching
+    total_progress_increase = base_progress_increase + alignment_bonus + ai_bonus
+    
+    # Update goals based on enhanced matching logic
     for goal in active_goals:
         progress_added = 0.0
         reason = ""
+        match_strength = 0.0
         
-        # Category matching
+        # Enhanced matching logic
+        task_text = f"{task.title} {task.description}".lower()
+        goal_text = f"{goal.title} {goal.description or ''}".lower()
+        
+        # 1. Perfect category match
         if task.category == goal.category:
-            progress_added = total_progress_increase
-            reason = f"Task category '{task.category}' matches goal"
-        # Keyword matching in titles/descriptions
-        elif goal.title.lower() in task.title.lower() or task.title.lower() in goal.title.lower():
-            progress_added = total_progress_increase * 0.8  # 80% for keyword match
-            reason = f"Task relates to goal '{goal.title}'"
-        # General learning/growth tasks boost personal goals
-        elif goal.category == "personal" and task.category in ["learning", "health"]:
-            progress_added = total_progress_increase * 0.3  # 30% for general growth
+            match_strength = 1.0
+            reason = f"Task category '{task.category}' matches goal category"
+            
+        # 2. Strong keyword matching in titles/descriptions
+        elif any(word in task_text for word in goal_text.split() if len(word) > 3):
+            match_strength = 0.9
+            reason = f"Task content strongly relates to goal '{goal.title}'"
+            
+        # 3. Profile goals keyword matching (for AI-generated tasks)
+        elif is_ai_generated and profile_goals_text:
+            # Check if task relates to profile goals
+            profile_keywords = [word for word in profile_goals_text.split() if len(word) > 4]
+            if any(keyword in task_text for keyword in profile_keywords):
+                match_strength = 0.8
+                reason = f"AI-generated task aligns with profile goals"
+                
+        # 4. Job/career related goals get boosted by work tasks
+        elif "job" in goal_text or "career" in goal_text or "work" in goal_text:
+            if task.category == "work" or "job" in task_text or "career" in task_text or "resume" in task_text:
+                match_strength = 0.9
+                reason = f"Career-focused task supports job-related goal"
+                
+        # 5. Learning goals get boosted by learning tasks
+        elif goal.category == "learning" or "learn" in goal_text:
+            if task.category == "learning" or "learn" in task_text or "study" in task_text:
+                match_strength = 0.8
+                reason = f"Learning task supports educational goal"
+                
+        # 6. General learning/growth tasks boost personal goals
+        elif goal.category == "personal" and task.category in ["learning", "fitness", "health"]:
+            match_strength = 0.4
             reason = f"General growth task supports personal development"
         
-        # Apply progress update
-        if progress_added > 0:
+        # Apply progress update based on match strength
+        if match_strength > 0:
+            progress_added = total_progress_increase * match_strength
             old_progress = goal.progress
             goal.progress = min(goal.progress + progress_added, 1.0)  # Cap at 100%
             goal.updated_at = datetime.utcnow()
@@ -297,7 +339,8 @@ def update_goal_progress(task: Task, session: Session) -> List[Dict]:
                 "new_progress": goal.progress,
                 "progress_added": progress_added,
                 "reason": reason,
-                "completed": goal.completed
+                "completed": goal.completed,
+                "match_strength": match_strength
             })
             
             session.add(goal)

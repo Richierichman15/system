@@ -11,8 +11,8 @@ router = APIRouter()
 
 @router.get("/", response_model=List[Goal])
 def list_goals(session: Session = Depends(get_session)):
-    """Get all active goals for user 1"""
-    return session.exec(select(Goal).where(Goal.user_id == 1, Goal.completed == False).order_by(Goal.priority.desc(), Goal.created_at.desc())).all()
+    """Get all goals for user 1 (completed and active)"""
+    return session.exec(select(Goal).where(Goal.user_id == 1).order_by(Goal.completed.asc(), Goal.priority.desc(), Goal.created_at.desc())).all()
 
 
 @router.post("/", response_model=Goal)
@@ -89,6 +89,82 @@ def update_goal_progress(goal_id: int, progress_data: dict, session: Session = D
     session.commit()
     session.refresh(goal)
     return goal
+
+
+@router.post("/{goal_id}/complete")
+def complete_goal(goal_id: int, session: Session = Depends(get_session)):
+    """Complete a goal and reward XP"""
+    goal = session.get(Goal, goal_id)
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    if goal.completed:
+        return {"goal": goal, "xp_gained": 0, "message": "Goal already completed"}
+    
+    # Get or create user profile
+    profile = session.get(UserProfile, 1)
+    if not profile:
+        profile = UserProfile(id=1)
+        session.add(profile)
+        session.flush()
+    
+    # Calculate XP reward based on goal priority and category
+    xp_rewards = {
+        "critical": 50,  # Highest priority gets max XP
+        "high": 40,
+        "medium": 30,
+        "low": 20      # Lowest priority gets min XP
+    }
+    
+    base_xp = xp_rewards.get(goal.priority, 30)
+    
+    # Bonus XP for certain categories
+    category_bonuses = {
+        "career": 10,     # Career goals are important
+        "learning": 5,    # Learning gets a bonus
+        "health": 5,      # Health goals are valuable
+        "financial": 10,  # Financial goals get higher reward
+    }
+    
+    bonus_xp = category_bonuses.get(goal.category, 0)
+    total_xp = base_xp + bonus_xp
+    
+    # Store old values for response
+    old_level = profile.level
+    old_xp = profile.xp
+    
+    # Award XP and update profile
+    profile.xp += total_xp
+    new_level = profile.calculate_level()
+    profile.level = new_level
+    
+    # Award skill points based on level
+    base_skill_points = profile.level - 1
+    bonus_skill_points = max(0, (profile.level - 10) * 2) if profile.level > 10 else 0
+    profile.skill_points = base_skill_points + bonus_skill_points
+    
+    # Complete the goal
+    goal.completed = True
+    goal.completed_at = datetime.utcnow()
+    goal.progress = 1.0
+    goal.updated_at = datetime.utcnow()
+    
+    # Save changes
+    session.add(goal)
+    session.add(profile)
+    session.commit()
+    session.refresh(goal)
+    session.refresh(profile)
+    
+    return {
+        "goal": goal,
+        "profile": profile,
+        "xp_gained": total_xp,
+        "level_up": new_level > old_level,
+        "old_level": old_level,
+        "new_level": new_level,
+        "message": f"Goal completed! Earned {total_xp} XP! 🎉"
+    }
 
 
 @router.get("/categories")

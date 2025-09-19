@@ -86,7 +86,40 @@ def generate_tasks(
     goals: str = payload.get("goals", "").strip()[:200]  # Limit input size
     frequency: str = payload.get("frequency", "daily")
     
-    print(f"DEBUG: Received goals: '{goals}', frequency: '{frequency}'")
+    # Get user's profile goals and specific active goals
+    from ..models import Goal, UserProfile
+    profile_goals = ""
+    active_goals = []
+    
+    try:
+        # Get profile goals
+        profile = session.get(UserProfile, 1)
+        if profile and profile.goals:
+            profile_goals = profile.goals
+        
+        # Get active specific goals
+        active_goals = session.exec(
+            select(Goal).where(Goal.user_id == 1, Goal.completed == False)
+            .order_by(Goal.priority.desc(), Goal.created_at.desc())
+        ).all()
+        
+        # Combine all goals for better task generation
+        all_goals = []
+        if profile_goals:
+            all_goals.append(f"Profile Goals: {profile_goals}")
+        if active_goals:
+            goal_text = ", ".join([f"{goal.title} ({goal.category})" for goal in active_goals[:3]])  # Limit to top 3
+            all_goals.append(f"Current Goals: {goal_text}")
+        if goals:
+            all_goals.append(f"Session Goals: {goals}")
+            
+        combined_goals = " | ".join(all_goals) if all_goals else goals
+        
+    except Exception as e:
+        print(f"DEBUG: Error fetching goals: {e}")
+        combined_goals = goals
+    
+    print(f"DEBUG: Combined goals for task generation: '{combined_goals}', frequency: '{frequency}'")
     
     # Check cache first
     cache_key = f"{goals}:{frequency}"
@@ -128,14 +161,15 @@ def generate_tasks(
                 # Use direct HTTP request to Ollama with optimized settings
                 ollama_url = "http://localhost:11434/api/generate"
                 
-                # Enhanced prompt for better task generation
-                prompt = f"""Create 3 {frequency} tasks for goals: {goals}
+                # Enhanced prompt for better task generation with goal alignment
+                prompt = f"""Create 1-2 {frequency} tasks specifically aligned with these goals: {combined_goals}
+
+IMPORTANT: Create tasks that directly help achieve the stated goals. Focus on actionable steps that move the user closer to their specific objectives.
 
 Output must be valid JSON only:
 [
-{{"title":"First Task","description":"What to do","difficulty":"easy","category":"learning","xp":15}},
-{{"title":"Second Task","description":"What to do","difficulty":"medium","category":"fitness","xp":25}},
-{{"title":"Third Task","description":"What to do","difficulty":"hard","category":"personal","xp":40}}
+{{"title":"Goal-aligned Task","description":"Specific action that helps achieve the goals","difficulty":"medium","category":"work","xp":25}},
+{{"title":"Second Goal Task","description":"Another action toward the goals","difficulty":"easy","category":"learning","xp":15}}
 ]
 
 Categories: work, fitness, learning, social, personal, general
@@ -302,15 +336,20 @@ Return only JSON array."""
 
     # Create tasks with enhanced fields
     tasks: List[Task] = []
-    for item in items[:3]:  # Extra safety limit
+    for item in items[:2]:  # Limit to 1-2 tasks
         try:
             # Create task with new fields
+            # Check if goals are job-related and adjust category accordingly
+            job_keywords = ["job", "apply", "application", "career", "resume", "interview", "networking", "linkedin", "employment"]
+            is_job_related = any(keyword in combined_goals.lower() for keyword in job_keywords)
+            final_category = "work" if is_job_related else item.get("category", "general")
+            
             task = Task(
                 title=item["title"],
                 description=item["description"],
                 frequency=frequency,
                 difficulty=item.get("difficulty", "medium"),
-                category=item.get("category", "general"),
+                category=final_category,
                 xp=item["xp"],
                 goal_alignment=0.0,  # Default goal alignment
                 created_at=datetime.utcnow()
@@ -361,7 +400,40 @@ async def generate_tasks_advanced(
     task_category: str = payload.get("category", "general")
     user_preferences: dict = payload.get("preferences", {})
     
-    print(f"DEBUG: Advanced generation - goals: '{goals}', category: '{task_category}'")
+    # Get user's profile goals and specific active goals for advanced generation
+    from ..models import Goal, UserProfile
+    profile_goals = ""
+    active_goals = []
+    
+    try:
+        # Get profile goals
+        profile = session.get(UserProfile, 1)
+        if profile and profile.goals:
+            profile_goals = profile.goals
+        
+        # Get active specific goals
+        active_goals = session.exec(
+            select(Goal).where(Goal.user_id == 1, Goal.completed == False)
+            .order_by(Goal.priority.desc(), Goal.created_at.desc())
+        ).all()
+        
+        # Combine all goals for better task generation
+        all_goals = []
+        if profile_goals:
+            all_goals.append(f"Profile Goals: {profile_goals}")
+        if active_goals:
+            goal_text = ", ".join([f"{goal.title} ({goal.category})" for goal in active_goals[:3]])  # Limit to top 3
+            all_goals.append(f"Current Goals: {goal_text}")
+        if goals:
+            all_goals.append(f"Session Goals: {goals}")
+            
+        combined_goals = " | ".join(all_goals) if all_goals else goals
+        
+    except Exception as e:
+        print(f"DEBUG: Error fetching goals for advanced generation: {e}")
+        combined_goals = goals
+    
+    print(f"DEBUG: Advanced generation - combined goals: '{combined_goals}', category: '{task_category}'")
     
     # Check cache first with category-specific key
     cache_key = f"{goals}:{frequency}:{task_category}"
@@ -371,9 +443,9 @@ async def generate_tasks_advanced(
         items = cached_items
     else:
         try:
-            # Use advanced AI service
+            # Use advanced AI service with combined goals
             items = await ai_service.generate_tasks_with_model(
-                goals=goals,
+                goals=combined_goals,
                 frequency=frequency, 
                 task_category=task_category,
                 user_preferences=user_preferences
@@ -390,14 +462,14 @@ async def generate_tasks_advanced(
 
     # Create tasks with enhanced fields
     tasks: List[Task] = []
-    for item in items[:3]:
+    for item in items[:2]:  # Limit to 1-2 tasks
         try:
             task = Task(
                 title=item["title"],
                 description=item["description"],
                 frequency=frequency,
                 difficulty=item.get("difficulty", "medium"),
-                category=item.get("category", task_category),
+                category=task_category,  # Force use of selected category
                 xp=item.get("xp", 20),
                 goal_alignment=0.0,
                 created_at=datetime.utcnow()
