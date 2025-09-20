@@ -1,8 +1,26 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8000'
+// Dynamic API URL based on current host
+const getApiUrl = () => {
+  const hostname = window.location.hostname
+  // If accessing via IP address, use the same IP for backend
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return `http://${hostname}:8000`
+  }
+  return 'http://localhost:8000'
+}
+
+const API_URL = getApiUrl()
 
 export const api = {
+  // Auth
+  async login({ username, password }) {
+    const response = await axios.post(`${API_URL}/auth/login`, { username, password })
+    const { token } = response.data
+    if (token) localStorage.setItem('auth_token', token)
+    return response.data
+  },
+
   // Profile endpoints
   async getProfile() {
     const response = await axios.get(`${API_URL}/profile`)
@@ -16,7 +34,9 @@ export const api = {
 
   // Task endpoints
   async listTasks(params = {}) {
-    const response = await axios.get(`${API_URL}/tasks`, { params })
+    // Add cache busting to ensure fresh data
+    const cacheParams = { ...params, _t: Date.now() }
+    const response = await axios.get(`${API_URL}/tasks`, { params: cacheParams })
     return response.data
   },
 
@@ -97,6 +117,11 @@ export const api = {
     return response.data
   },
 
+  async completeGoal(id) {
+    const response = await axios.post(`${API_URL}/goals/${id}/complete`)
+    return response.data
+  },
+
   async getGoalCategories() {
     const response = await axios.get(`${API_URL}/goals/categories`)
     return response.data
@@ -129,5 +154,55 @@ export const api = {
         loadingIndicator.remove()
       }
     }
+  },
+
+  // Advanced AI task generation with specialized models
+  async generateTasksAdvanced(data) {
+    const taskContainer = document.querySelector('.grid')
+    if (taskContainer) {
+      const loadingElement = document.createElement('div')
+      loadingElement.className = 'loading-indicator'
+      loadingElement.innerHTML = `
+        <div class="spinner"></div>
+        <p>Generating specialized quests...</p>
+      `
+      taskContainer.appendChild(loadingElement)
+    }
+    
+    try {
+      const response = await axios.post(`${API_URL}/ai/generate-advanced`, data)
+      return response.data
+    } catch (error) {
+      console.error('Error generating advanced tasks:', error)
+      throw error
+    } finally {
+      const loadingIndicator = document.querySelector('.loading-indicator')
+      if (loadingIndicator) {
+        loadingIndicator.remove()
+      }
+    }
+  },
+
+  // Submit feedback for AI learning
+  async submitTaskFeedback(taskId, rating, completed, completionTime = null) {
+    const response = await axios.post(`${API_URL}/ai/feedback`, {
+      task_id: taskId,
+      rating: rating,
+      completed: completed,
+      completion_time: completionTime
+    })
+    return response.data
+  },
+
+  // Get AI model statistics
+  async getAIModelStats() {
+    const response = await axios.get(`${API_URL}/ai/models/stats`)
+    return response.data
+  },
+
+  // Get available AI models
+  async getAvailableModels() {
+    const response = await axios.get(`${API_URL}/ai/models/available`)
+    return response.data
   }
 }

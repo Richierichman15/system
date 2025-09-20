@@ -76,6 +76,50 @@ export default function Goals() {
     }
   }
 
+  async function completeGoal(goalId) {
+    if (!confirm('Are you sure you want to mark this goal as complete? This will award XP!')) return
+    
+    try {
+      const result = await api.completeGoal(goalId)
+      loadGoals()
+      
+      // Show XP gained notification
+      if (result.xp_gained) {
+        window.dispatchEvent(new CustomEvent('game-notification', {
+          detail: {
+            type: 'xp',
+            amount: result.xp_gained,
+            duration: 3000
+          }
+        }))
+      }
+      
+      // Show level up notification
+      if (result.level_up) {
+        window.dispatchEvent(new CustomEvent('game-notification', {
+          detail: {
+            type: 'level-up',
+            newLevel: result.new_level,
+            oldLevel: result.old_level,
+            duration: 4000
+          }
+        }))
+      }
+      
+      // Show goal completion message
+      window.dispatchEvent(new CustomEvent('game-notification', {
+        detail: {
+          type: 'success',
+          message: result.message,
+          duration: 4000
+        }
+      }))
+      
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   const getPriorityColor = (priority) => {
     const colors = {
       critical: 'text-red-400',
@@ -208,13 +252,21 @@ export default function Goals() {
 
       <div className="grid">
         {goals.map(goal => (
-          <div key={goal.id} className="quest-card">
+          <div key={goal.id} className={`quest-card ${goal.completed ? 'opacity-75' : ''}`}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-2">
                 <i className={`fas ${getCategoryIcon(goal.category)} text-glow`}></i>
-                <h3 className="text-xl font-bold">{goal.title}</h3>
+                <h3 className="text-xl font-bold">
+                  {goal.title}
+                  {goal.completed && <span className="ml-2 text-green-400">✓</span>}
+                </h3>
               </div>
               <div className="flex items-center gap-2">
+                {goal.completed && (
+                  <span className="px-2 py-1 rounded text-sm text-green-400 bg-green-400/20">
+                    COMPLETED
+                  </span>
+                )}
                 <span className={`px-2 py-1 rounded text-sm ${getPriorityColor(goal.priority)}`}>
                   {goal.priority.toUpperCase()}
                 </span>
@@ -244,7 +296,7 @@ export default function Goals() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mb-4">
               <input
                 type="range"
                 min="0"
@@ -252,10 +304,34 @@ export default function Goals() {
                 value={goal.progress * 100}
                 onChange={(e) => updateGoalProgress(goal.id, e.target.value / 100)}
                 className="flex-1"
+                disabled={goal.completed}
               />
               <span className="text-sm text-white/60">
                 {goal.target_date && new Date(goal.target_date).toLocaleDateString()}
+                {goal.completed && goal.completed_at && (
+                  <span className="block text-green-400">
+                    Completed: {new Date(goal.completed_at).toLocaleDateString()}
+                  </span>
+                )}
               </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-white/60">
+                Category: {goal.category} • Priority: {goal.priority}
+              </div>
+              <div className="flex gap-2">
+                {goal.progress >= 0.8 && !goal.completed && (
+                  <button 
+                    onClick={() => completeGoal(goal.id)}
+                    className="quest-btn complete-btn"
+                    title="Complete Goal & Earn XP"
+                  >
+                    <i className="fas fa-trophy"></i>
+                    Complete
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
