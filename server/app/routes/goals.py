@@ -18,14 +18,14 @@ def list_goals(session: Session = Depends(get_session)):
 @router.post("/", response_model=Goal)
 def create_goal(goal_data: dict, session: Session = Depends(get_session)):
     """Create a new goal"""
-    # Ensure user exists
+     
     user = session.get(UserProfile, 1)
     if not user:
         user = UserProfile(id=1)
         session.add(user)
         session.flush()
     
-    # Parse target_date if it's a string
+
     if "target_date" in goal_data and goal_data["target_date"]:
         try:
             if isinstance(goal_data["target_date"], str):
@@ -81,7 +81,7 @@ def update_goal_progress(goal_id: int, progress_data: dict, session: Session = D
         raise HTTPException(status_code=404, detail="Goal not found")
     
     progress = progress_data.get("progress", 0.0)
-    progress = max(0.0, min(1.0, progress))  # Clamp between 0 and 1
+    progress = max(0.0, min(1.0, progress))  
     
     goal.progress = progress
     goal.updated_at = datetime.utcnow()
