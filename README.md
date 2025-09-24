@@ -218,6 +218,44 @@ system/
 
 ## 🐛 Troubleshooting
 
+
+## 🧩 MCP Server (Jarvis)
+
+Expose System functionality via Model Context Protocol (MCP) for your Jarvis client.
+
+- Entrypoint: `system_server.py`
+- Requires: Python 3.11+, installed backend deps (`server/requirements.txt`) and the `mcp` Python package
+
+### Run locally
+
+```bash
+pip install -r server/requirements.txt
+pip install mcp
+python system_server.py
+```
+
+This launches an MCP stdio server.
+
+### Connect from Jarvis
+
+In your Jarvis client, connect via stdio:
+
+```
+connect system "python ../System/system_server.py"
+```
+
+Then call tools, for example:
+
+```
+system.add_goal {"title":"BMW 335i","target":12000}
+system.check_progress {"title":"BMW 335i"}
+system.get_status
+```
+
+Notes:
+- Goals are stored in the existing database (`server/app/models.Goal`). The numeric `target` is saved inside the goal's `description` field as JSON (e.g., `{ "target": 12000 }`).
+- `system.get_status` summarizes XP, active quests (Tasks marked active and not completed), and active goals for user `id=1`.
+
 ### Common Issues
 
 #### Port Conflicts
@@ -278,15 +316,3 @@ docker-compose logs frontend
 
 This project is licensed under the MIT License.
 
-## 🎯 Roadmap
-
-- [ ] User authentication
-- [ ] Multi-user support
-- [ ] Advanced AI features
-- [ ] Mobile app
-- [ ] Social features
-- [ ] Advanced analytics
-
-## 📞 Support
-
-If you encounter any issues or have questions, please open an issue on GitHub.
