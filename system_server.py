@@ -52,6 +52,49 @@ async def list_tools() -> List[Tool]:
             ),
         ),
         Tool(
+            name="system.create_task",
+            description="Create a new quest/task visible in the System UI.",
+            inputSchema=_json_schema_object(
+                {
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily"},
+                    "difficulty": {"type": "string", "enum": ["easy", "medium", "hard", "expert"], "default": "medium"},
+                    "category": {"type": "string", "enum": [
+                        "work", "fitness", "learning", "social", "personal", "general", "career", "health", "financial", "relationships"
+                    ], "default": "general"},
+                    "xp": {"type": "number", "description": "Optional XP; will be clamped by difficulty."},
+                    "is_recurring": {"type": "boolean", "default": False},
+                    "recurring_interval": {"type": "integer", "minimum": 1},
+                },
+                required=["title"],
+            ),
+        ),
+        Tool(
+            name="system.list_tasks",
+            description="List recent tasks with optional filters.",
+            inputSchema=_json_schema_object(
+                {
+                    "completed": {"type": "boolean"},
+                    "category": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+                },
+                required=[],
+            ),
+        ),
+        Tool(
+            name="system.complete_task",
+            description="Mark a task as completed and award XP using backend logic.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
+        ),
+        Tool(
+            name="system.set_task_completed",
+            description="Set a task's completed state. If setting to true, awards XP; if false, just uncompletes.",
+            inputSchema=_json_schema_object(
+                {"id": {"type": "integer"}, "completed": {"type": "boolean"}}, required=["id", "completed"]
+            ),
+        ),
+        Tool(
             name="system.check_progress",
             description="Check current progress (0.0-1.0) toward a goal by title.",
             inputSchema=_json_schema_object(
@@ -126,6 +169,131 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 },
             }
             return [TextContent(type="text", text=json.dumps(response))]
+
+    if name == "system.create_task":
+        title = str(arguments.get("title", "")).strip()
+        if not title:
+            return [TextContent(type="text", text=json.dumps({"error": "title is required"}))]
+
+        description = arguments.get("description")
+        frequency = (arguments.get("frequency") or "daily").strip()
+        difficulty = (arguments.get("difficulty") or "medium").strip()
+        category = (arguments.get("category") or "general").strip()
+        xp = arguments.get("xp")
+        is_recurring = bool(arguments.get("is_recurring", False))
+        recurring_interval = arguments.get("recurring_interval")
+
+        with Session(engine) as session:
+            # Build task and clamp XP via model helper
+            task = Task(
+                title=title,
+                description=description,
+                frequency=frequency,
+                difficulty=difficulty,
+                category=category,
+                xp=int(xp) if xp is not None else 0,
+                is_recurring=is_recurring,
+                recurring_interval=int(recurring_interval) if recurring_interval else None,
+                active=True,
+                completed=False,
+            )
+            task.xp = task.calculate_xp_reward()
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+
+            response = {
+                "ok": True,
+                "task": {
+                    "id": task.id,
+                    "title": task.title,
+                    "category": task.category,
+                    "difficulty": task.difficulty,
+                    "xp": task.xp,
+                    "active": task.active,
+                    "completed": task.completed,
+                },
+            }
+            return [TextContent(type="text", text=json.dumps(response))]
+
+    if name == "system.list_tasks":
+        completed = arguments.get("completed")
+        category = arguments.get("category")
+        limit = int(arguments.get("limit") or 10)
+        limit = max(1, min(limit, 100))
+
+        with Session(engine) as session:
+            query = select(Task).order_by(Task.created_at.desc())
+            if category:
+                query = query.where(Task.category == category)
+            if completed is not None:
+                query = query.where(Task.completed == bool(completed))
+            tasks = session.exec(query).all()[:limit]
+            payload = [
+                {
+                    "id": t.id,
+                    "title": t.title,
+                    "category": t.category,
+                    "difficulty": t.difficulty,
+                    "xp": t.xp,
+                    "active": t.active,
+                    "completed": t.completed,
+                }
+                for t in tasks
+            ]
+            return [TextContent(type="text", text=json.dumps({"ok": True, "tasks": payload}))]
+
+    if name == "system.complete_task":
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+
+        # Reuse backend route logic for XP/achievements/goal updates
+        from server.app.routes.tasks import complete_task as route_complete_task
+
+        with Session(engine) as session:
+            result = route_complete_task(task_id, session)
+            task = result.get("task")
+            profile = result.get("profile")
+            response = {
+                "ok": True,
+                "task": {
+                    "id": task.id,
+                    "title": task.title,
+                    "completed": task.completed,
+                    "xp": task.xp,
+                },
+                "profile": {"xp": profile.xp, "level": profile.level},
+                "xp_gained": result.get("xp_gained"),
+                "level_up": result.get("level_up"),
+            }
+            return [TextContent(type="text", text=json.dumps(response))]
+
+    if name == "system.set_task_completed":
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+        completed_flag = bool(arguments.get("completed", True))
+
+        if completed_flag:
+            # Delegate to complete_task logic
+            return await call_tool("system.complete_task", {"id": task_id})
+        else:
+            with Session(engine) as session:
+                task = session.get(Task, task_id)
+                if not task:
+                    return [TextContent(type="text", text=json.dumps({"error": "task not found", "id": task_id}))]
+                task.completed = False
+                task.completed_at = None
+                session.add(task)
+                session.commit()
+                session.refresh(task)
+                return [TextContent(type="text", text=json.dumps({
+                    "ok": True,
+                    "task": {"id": task.id, "title": task.title, "completed": task.completed}
+                }))]
 
     if name == "system.check_progress":
         title = str(arguments.get("title", "")).strip()
