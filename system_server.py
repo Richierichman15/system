@@ -2,6 +2,7 @@ import asyncio
 import json
 import sys
 from typing import Any, Dict, List
+from datetime import datetime
 
 try:
     from mcp.server import Server
@@ -37,23 +38,34 @@ def _json_schema_object(properties: Dict[str, Any], required: List[str] | None =
     }
 
 
+def _task_to_dict(t: Task) -> Dict[str, Any]:
+    def ts(dt):
+        return dt.isoformat() if dt else None
+    return {
+        "id": t.id,
+        "title": t.title,
+        "description": t.description,
+        "frequency": t.frequency,
+        "difficulty": t.difficulty,
+        "category": t.category,
+        "xp": t.xp,
+        "is_recurring": t.is_recurring,
+        "recurring_interval": t.recurring_interval,
+        "active": t.active,
+        "completed": t.completed,
+        "completed_at": ts(t.completed_at),
+        "created_at": ts(t.created_at),
+        "updated_at": ts(t.updated_at),
+    }
+
+
 @server.list_tools()
 async def list_tools() -> List[Tool]:
     return [
+        # Preferred "quest" tools
         Tool(
-            name="system.add_goal",
-            description="Add a goal with a numeric target into System's database.",
-            inputSchema=_json_schema_object(
-                {
-                    "title": {"type": "string", "description": "Goal title"},
-                    "target": {"type": "number", "description": "Numeric target for the goal"},
-                },
-                required=["title", "target"],
-            ),
-        ),
-        Tool(
-            name="system.create_task",
-            description="Create a new quest/task visible in the System UI.",
+            name="system.create_quest",
+            description="Create a new quest (task) visible in the System UI.",
             inputSchema=_json_schema_object(
                 {
                     "title": {"type": "string"},
@@ -71,8 +83,106 @@ async def list_tools() -> List[Tool]:
             ),
         ),
         Tool(
+            name="system.get_quest",
+            description="Fetch a quest by id with full details.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
+        ),
+        Tool(
+            name="system.list_quests",
+            description="List recent quests with optional filters.",
+            inputSchema=_json_schema_object(
+                {
+                    "completed": {"type": "boolean"},
+                    "category": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+                },
+                required=[],
+            ),
+        ),
+        Tool(
+            name="system.complete_quest",
+            description="Mark a quest as completed and award XP using backend logic.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
+        ),
+        Tool(
+            name="system.set_quest_completed",
+            description="Set a quest's completed state. If true, awards XP; if false, un-completes.",
+            inputSchema=_json_schema_object(
+                {"id": {"type": "integer"}, "completed": {"type": "boolean"}}, required=["id", "completed"]
+            ),
+        ),
+        Tool(
+            name="system.toggle_quest_active",
+            description="Toggle a quest's active state (cannot activate a completed quest).",
+            inputSchema=_json_schema_object(
+                {"id": {"type": "integer"}, "active": {"type": "boolean"}}, required=["id", "active"]
+            ),
+        ),
+        Tool(
+            name="system.update_quest",
+            description="Update quest fields; XP clamps if difficulty/xp change.",
+            inputSchema=_json_schema_object(
+                {
+                    "id": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"]},
+                    "difficulty": {"type": "string", "enum": ["easy", "medium", "hard", "expert"]},
+                    "category": {"type": "string"},
+                    "xp": {"type": "number"},
+                    "is_recurring": {"type": "boolean"},
+                    "recurring_interval": {"type": "integer", "minimum": 1},
+                    "active": {"type": "boolean"}
+                },
+                required=["id"],
+            ),
+        ),
+        Tool(
+            name="system.delete_quest",
+            description="Delete a quest by id.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
+        ),
+
+        # Existing goal tool
+        Tool(
+            name="system.add_goal",
+            description="Add a goal with a numeric target into System's database.",
+            inputSchema=_json_schema_object(
+                {
+                    "title": {"type": "string", "description": "Goal title"},
+                    "target": {"type": "number", "description": "Numeric target for the goal"},
+                },
+                required=["title", "target"],
+            ),
+        ),
+        # Legacy "task" tools (kept for compatibility)
+        Tool(
+            name="system.create_task",
+            description="[Deprecated] Use system.create_quest. Create a new quest/task.",
+            inputSchema=_json_schema_object(
+                {
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily"},
+                    "difficulty": {"type": "string", "enum": ["easy", "medium", "hard", "expert"], "default": "medium"},
+                    "category": {"type": "string", "enum": [
+                        "work", "fitness", "learning", "social", "personal", "general", "career", "health", "financial", "relationships"
+                    ], "default": "general"},
+                    "xp": {"type": "number", "description": "Optional XP; will be clamped by difficulty."},
+                    "is_recurring": {"type": "boolean", "default": False},
+                    "recurring_interval": {"type": "integer", "minimum": 1},
+                },
+                required=["title"],
+            ),
+        ),
+        Tool(
+            name="system.get_task",
+            description="[Deprecated] Use system.get_quest. Fetch a task by id.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
+        ),
+        Tool(
             name="system.list_tasks",
-            description="List recent tasks with optional filters.",
+            description="[Deprecated] Use system.list_quests. List recent tasks.",
             inputSchema=_json_schema_object(
                 {
                     "completed": {"type": "boolean"},
@@ -84,15 +194,46 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="system.complete_task",
-            description="Mark a task as completed and award XP using backend logic.",
+            description="[Deprecated] Use system.complete_quest. Complete a task.",
             inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
         ),
         Tool(
             name="system.set_task_completed",
-            description="Set a task's completed state. If setting to true, awards XP; if false, just uncompletes.",
+            description="[Deprecated] Use system.set_quest_completed. Set task completed state.",
             inputSchema=_json_schema_object(
                 {"id": {"type": "integer"}, "completed": {"type": "boolean"}}, required=["id", "completed"]
             ),
+        ),
+        Tool(
+            name="system.toggle_task_active",
+            description="[Deprecated] Use system.toggle_quest_active. Toggle a task active flag.",
+            inputSchema=_json_schema_object(
+                {"id": {"type": "integer"}, "active": {"type": "boolean"}}, required=["id", "active"]
+            ),
+        ),
+        Tool(
+            name="system.update_task",
+            description="[Deprecated] Use system.update_quest. Update a task.",
+            inputSchema=_json_schema_object(
+                {
+                    "id": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"]},
+                    "difficulty": {"type": "string", "enum": ["easy", "medium", "hard", "expert"]},
+                    "category": {"type": "string"},
+                    "xp": {"type": "number"},
+                    "is_recurring": {"type": "boolean"},
+                    "recurring_interval": {"type": "integer", "minimum": 1},
+                    "active": {"type": "boolean"}
+                },
+                required=["id"],
+            ),
+        ),
+        Tool(
+            name="system.delete_task",
+            description="[Deprecated] Use system.delete_quest. Delete a task.",
+            inputSchema=_json_schema_object({"id": {"type": "integer"}}, required=["id"]),
         ),
         Tool(
             name="system.check_progress",
@@ -170,7 +311,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             }
             return [TextContent(type="text", text=json.dumps(response))]
 
-    if name == "system.create_task":
+    if name in ("system.create_task", "system.create_quest"):
         title = str(arguments.get("title", "")).strip()
         if not title:
             return [TextContent(type="text", text=json.dumps({"error": "title is required"}))]
@@ -216,7 +357,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             }
             return [TextContent(type="text", text=json.dumps(response))]
 
-    if name == "system.list_tasks":
+    if name in ("system.list_tasks", "system.list_quests"):
         completed = arguments.get("completed")
         category = arguments.get("category")
         limit = int(arguments.get("limit") or 10)
@@ -243,7 +384,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             ]
             return [TextContent(type="text", text=json.dumps({"ok": True, "tasks": payload}))]
 
-    if name == "system.complete_task":
+    if name in ("system.complete_task", "system.complete_quest"):
         try:
             task_id = int(arguments.get("id"))
         except Exception:
@@ -270,7 +411,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             }
             return [TextContent(type="text", text=json.dumps(response))]
 
-    if name == "system.set_task_completed":
+    if name in ("system.set_task_completed", "system.set_quest_completed"):
         try:
             task_id = int(arguments.get("id"))
         except Exception:
@@ -294,6 +435,111 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                     "ok": True,
                     "task": {"id": task.id, "title": task.title, "completed": task.completed}
                 }))]
+
+    if name in ("system.get_task", "system.get_quest"):
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return [TextContent(type="text", text=json.dumps({"error": "task not found", "id": task_id}))]
+            return [TextContent(type="text", text=json.dumps({"ok": True, "task": _task_to_dict(task)}))]
+
+    if name in ("system.delete_task", "system.delete_quest"):
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return [TextContent(type="text", text=json.dumps({"error": "task not found", "id": task_id}))]
+            title = task.title
+            session.delete(task)
+            session.commit()
+            return [TextContent(type="text", text=json.dumps({"ok": True, "deleted": {"id": task_id, "title": title}}))]
+
+    if name in ("system.toggle_task_active", "system.toggle_quest_active"):
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+        desired_active = bool(arguments.get("active", True))
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return [TextContent(type="text", text=json.dumps({"error": "task not found", "id": task_id}))]
+            if desired_active and task.completed:
+                return [TextContent(type="text", text=json.dumps({"error": "cannot activate a completed task"}))]
+
+            task.active = desired_active
+            task.updated_at = datetime.utcnow()
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+            return [TextContent(type="text", text=json.dumps({
+                "ok": True,
+                "task": {"id": task.id, "title": task.title, "active": task.active, "completed": task.completed}
+            }))]
+
+    if name in ("system.update_task", "system.update_quest"):
+        try:
+            task_id = int(arguments.get("id"))
+        except Exception:
+            return [TextContent(type="text", text=json.dumps({"error": "id must be an integer"}))]
+
+        editable_fields = {
+            "title", "description", "frequency", "difficulty", "category",
+            "xp", "is_recurring", "recurring_interval", "active"
+        }
+        payload = {k: v for k, v in arguments.items() if k in editable_fields}
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return [TextContent(type="text", text=json.dumps({"error": "task not found", "id": task_id}))]
+
+            # Apply updates
+            for key, value in payload.items():
+                if key == "recurring_interval" and value is not None:
+                    try:
+                        value = int(value)
+                    except Exception:
+                        return [TextContent(type="text", text=json.dumps({"error": "recurring_interval must be an integer"}))]
+                if key == "xp" and value is not None:
+                    try:
+                        value = int(value)
+                    except Exception:
+                        return [TextContent(type="text", text=json.dumps({"error": "xp must be a number"}))]
+                if key == "active" and value and task.completed:
+                    return [TextContent(type="text", text=json.dumps({"error": "cannot activate a completed task"}))]
+                setattr(task, key, value)
+
+            # Recalculate/clamp XP if difficulty or xp changed
+            if ("difficulty" in payload) or ("xp" in payload):
+                task.xp = task.calculate_xp_reward()
+
+            task.updated_at = datetime.utcnow()
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+            return [TextContent(type="text", text=json.dumps({
+                "ok": True,
+                "task": {
+                    "id": task.id,
+                    "title": task.title,
+                    "category": task.category,
+                    "difficulty": task.difficulty,
+                    "xp": task.xp,
+                    "active": task.active,
+                    "completed": task.completed,
+                }
+            }))]
 
     if name == "system.check_progress":
         title = str(arguments.get("title", "")).strip()
