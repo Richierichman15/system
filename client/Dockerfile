@@ -30,11 +30,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Expose port
-EXPOSE 5173
+EXPOSE 6000
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5173 || exit 1
+    CMD curl -f http://localhost:6000 || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

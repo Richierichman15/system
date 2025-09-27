@@ -5,9 +5,9 @@ const getApiUrl = () => {
   const hostname = window.location.hostname
   // If accessing via IP address, use the same IP for backend
   if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return `http://${hostname}:8000`
+    return `http://${hostname}:8200`
   }
-  return 'http://localhost:8000'
+  return 'http://localhost:8200'
 }
 
 const API_URL = getApiUrl()
