@@ -27,8 +27,8 @@ docker-compose up --build
 
 # Access the application
 # Frontend: http://localhost:3000
-# Backend API: http://localhost:8000
-# API Documentation: http://localhost:8000/docs
+# Backend API: http://localhost:8200
+# API Documentation: http://localhost:8200/docs
 ```
 
 ### Option 2: Development Mode with Docker
@@ -41,7 +41,7 @@ docker-compose --profile dev up --build
 
 # Access the application
 # Frontend: http://localhost:3001 (dev mode)
-# Backend: http://localhost:8000
+# Backend: http://localhost:8200
 ```
 
 ### Option 3: Manual Setup
@@ -68,7 +68,7 @@ pip install -r requirements.txt
 python -m app.cli
 ```
 
-The backend will be available at `http://localhost:8000`
+The backend will be available at `http://localhost:8200`
 
 #### Frontend Setup
 
@@ -83,7 +83,7 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`
+The frontend will be available at `http://localhost:6000`
 
 ## 🛠️ Development
 
@@ -124,7 +124,7 @@ Key files:
 python -m app.cli
 
 # Run with uvicorn directly
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8200 --reload
 ```
 
 #### Frontend
@@ -200,7 +200,7 @@ system/
 - `CORS_ORIGINS`: Allowed CORS origins (default: `http://localhost:3000,http://localhost:80`)
 
 #### Frontend
-- `VITE_API_URL`: Backend API URL (default: `http://localhost:8000`)
+- `VITE_API_URL`: Backend API URL (default: `http://localhost:8200`)
 
 ### API Endpoints
 
@@ -259,7 +259,7 @@ Notes:
 ### Common Issues
 
 #### Port Conflicts
-- Backend runs on port 8000
+- Backend runs on port 8200
 - Frontend runs on port 3000 (production) or 3001 (development)
 - Make sure these ports are available
 
@@ -315,4 +315,3 @@ docker-compose logs frontend
 ## 📄 License
 
 This project is licensed under the MIT License.
-

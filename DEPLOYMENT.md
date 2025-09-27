@@ -11,7 +11,7 @@ docker-compose -f docker-compose.prod.yml up --build
 
 # Access the application
 # Frontend: http://localhost:3000
-# Backend: http://localhost:8000
+# Backend: http://localhost:8200
 ```
 
 ### Development Deployment
@@ -21,7 +21,7 @@ docker-compose --profile dev up --build
 
 # Access the application
 # Frontend: http://localhost:3001 (dev mode)
-# Backend: http://localhost:8000
+# Backend: http://localhost:8200
 ```
 
 ### Standard Deployment
@@ -31,7 +31,7 @@ docker-compose up --build
 
 # Access the application
 # Frontend: http://localhost:3000
-# Backend: http://localhost:8000
+# Backend: http://localhost:8200
 ```
 
 ## 🔧 Manual Build (Rollup Fix)
@@ -75,7 +75,7 @@ This is fixed by:
 - Using `--no-optional` flag during npm install
 
 ### CORS Issues
-- Backend runs on port 8000
+- Backend runs on port 8200
 - Frontend runs on port 3000 (production) or 3001 (development)
 - CORS is configured for both ports
 
@@ -110,5 +110,5 @@ system/
 
 3. **Access the application:**
    - Frontend: http://localhost:3000 (or 3001 for dev)
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
+   - Backend API: http://localhost:8200
+   - API Docs: http://localhost:8200/docs
